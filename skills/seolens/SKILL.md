@@ -20,31 +20,33 @@ Trigger Seolens when the user:
 
 The plugin ships a Node.js CLI at `${CLAUDE_PLUGIN_ROOT}/bin/seolens.js`.
 
-**Standard JSON audit (use this most of the time — easiest to parse):**
+**Default behavior — generate a PDF AND parse JSON in one shot:**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/seolens.js" <url> --json
+DATE=$(date +%Y%m%d-%H%M%S)
+HOST=$(echo "<url>" | sed -E 's|https?://||; s|/.*||')
+OUT="$HOME/Desktop/seolens-$HOST-$DATE.pdf"
+node "${CLAUDE_PLUGIN_ROOT}/bin/seolens.js" <url> --pdf "$OUT" --json
 ```
 
-**PowerPoint client report:**
+The `--pdf` flag generates a polished multi-page report (cover, executive summary, all findings grouped by category, what's working, recommendations). The `--json` flag returns structured data so you can summarize highlights in chat.
+
+**After the audit completes, ALWAYS tell the user the PDF file path** so they can open it. On macOS, optionally append `&& open "$OUT"` to launch it automatically.
+
+**Other output options:**
 
 ```bash
+# PowerPoint client deck (when user wants slides instead of PDF)
 node "${CLAUDE_PLUGIN_ROOT}/bin/seolens.js" <url> --pptx /tmp/report.pptx
-```
 
-**Markdown report saved to file:**
+# Markdown only (no file generation, just text)
+node "${CLAUDE_PLUGIN_ROOT}/bin/seolens.js" <url> --markdown
 
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/seolens.js" <url> --out /tmp/report.md
-```
-
-**Colored terminal output (useful when user wants to read it directly):**
-
-```bash
+# Colored terminal output
 node "${CLAUDE_PLUGIN_ROOT}/bin/seolens.js" <url>
 ```
 
-If `node_modules` is missing, run `npm install` inside `${CLAUDE_PLUGIN_ROOT}` first. Dependencies: `cheerio`, `kleur`, `pptxgenjs`.
+If `node_modules` is missing, run `npm install` inside `${CLAUDE_PLUGIN_ROOT}` first. Dependencies: `cheerio`, `kleur`, `pdfkit`, `pptxgenjs`.
 
 ## Interpreting JSON results
 

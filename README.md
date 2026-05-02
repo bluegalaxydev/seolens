@@ -61,25 +61,53 @@ No login. No dashboard. No credit card. Just an audit.
 
 ## Install
 
-### Inside Claude Code (in your terminal, VS Code, JetBrains, or Cursor)
+Pick the path that matches how you use Claude Code:
+
+### Option 1 — Claude Code CLI (terminal)
+
+If you run `claude` in your terminal, install with one command:
 
 ```
 /plugin install github:bluegalaxydev/seolens
 ```
 
-Then in any Claude Code chat:
+Then anywhere in a Claude Code session:
 
 ```
-/seolens-audit https://example.com
+/seolens https://example.com         # quick audit, chat output only
+/seolens-pdf https://example.com     # audit + saves a polished PDF to your Desktop
 ```
 
 Or just ask in plain English:
 
 > "Audit the SEO on https://example.com"
+> "Audit my-site.com and save a PDF I can send to my client"
 
-Claude will invoke the `seolens` skill, run the audit, and explain the results with prioritized fixes. Add `--pptx` to get a branded PowerPoint report.
+Or just ask in plain English:
 
-### As a CLI (no Claude required)
+> "Audit the SEO on https://example.com"
+
+### Option 2 — VS Code / Cursor / JetBrains (Claude Code extension)
+
+The IDE extensions don't yet support `/plugin install`, so install manually:
+
+```bash
+mkdir -p ~/.claude/skills && \
+cd ~/.claude/skills && \
+git clone https://github.com/bluegalaxydev/seolens.git && \
+cd seolens && \
+npm install
+```
+
+Then in your IDE: open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) → **Reload Window**.
+
+After reload, in any Claude Code chat:
+
+> "Use the seolens skill to audit https://example.com"
+
+Claude finds the skill automatically and runs the audit.
+
+### Option 3 — Plain CLI (no Claude required)
 
 ```bash
 # One-off run (no install)
@@ -92,6 +120,17 @@ seolens https://example.com
 # As a library
 npm install seolens
 ```
+
+### Option 4 — VS Code extension (standalone)
+
+A dedicated VS Code extension (separate from the Claude Code integration) lives in [`vscode/`](./vscode). Install with:
+
+```bash
+cd vscode && npm install && npx vsce package
+code --install-extension seolens-vscode-*.vsix
+```
+
+Run `Seolens: Audit URL…` from the Command Palette.
 
 ```js
 import { audit, renderMarkdown } from 'seolens';
@@ -113,12 +152,19 @@ seolens https://example.com
 seolens https://example.com --out report.md
 ```
 
-### 3. Generate a PowerPoint client report
+### 3. Generate a polished PDF report
+```bash
+seolens https://example.com --pdf report.pdf
+```
+
+A multi-page PDF with cover (big score), executive summary, all findings grouped by category, what's working, and recommendations. Page count adapts to content. Perfect for client deliverables.
+
+### 3b. Generate a PowerPoint deck
 ```bash
 seolens https://example.com --pptx report.pptx
 ```
 
-A branded slide deck with cover, executive summary, score-by-category breakdown, one slide per issue with fix instructions, and a closing "what to do next" slide. Open it in PowerPoint, Keynote, or Google Slides — perfect for client deliverables.
+Same content, slide format. Open in PowerPoint, Keynote, or Google Slides.
 
 ### 4. Get JSON for further processing
 ```bash

@@ -11,6 +11,7 @@
 import { audit } from '../src/audit.js';
 import { renderTerminal, renderMarkdown } from '../src/reporter.js';
 import { renderPptx } from '../src/pptx-reporter.js';
+import { renderPdf } from '../src/pdf-reporter.js';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -39,6 +40,8 @@ const outIndex = args.findIndex((a) => a === '--out' || a === '-o');
 const outPath = outIndex >= 0 ? args[outIndex + 1] : null;
 const pptxIndex = args.indexOf('--pptx');
 const pptxPath = pptxIndex >= 0 ? args[pptxIndex + 1] : null;
+const pdfIndex = args.indexOf('--pdf');
+const pdfPath = pdfIndex >= 0 ? args[pdfIndex + 1] : null;
 
 (async () => {
   try {
@@ -59,6 +62,12 @@ const pptxPath = pptxIndex >= 0 ? args[pptxIndex + 1] : null;
       process.stderr.write(`PowerPoint report saved to ${abs}\n`);
     }
 
+    if (pdfPath) {
+      const abs = resolve(process.cwd(), pdfPath);
+      await renderPdf(result, abs);
+      process.stderr.write(`PDF report saved to ${abs}\n`);
+    }
+
     if (wantJson) {
       process.stdout.write(JSON.stringify(result, null, 2) + '\n');
     } else if (wantMarkdown || outPath) {
@@ -70,7 +79,7 @@ const pptxPath = pptxIndex >= 0 ? args[pptxIndex + 1] : null;
       } else {
         process.stdout.write(md);
       }
-    } else if (!pptxPath) {
+    } else if (!pptxPath && !pdfPath) {
       process.stdout.write(renderTerminal(result));
     }
 
@@ -93,12 +102,13 @@ function printHelp() {
     seolens <url> --json           Print full JSON results
     seolens <url> --out FILE       Save Markdown report to FILE
     seolens <url> --pptx FILE      Save PowerPoint (.pptx) report to FILE
+    seolens <url> --pdf FILE       Save PDF report (3-4 pages) to FILE
 
   Examples:
     seolens https://example.com
-    seolens example.com --markdown > report.md
-    seolens example.com --out report.md
+    seolens example.com --pdf report.pdf
     seolens example.com --pptx report.pptx
+    seolens example.com --out report.md
     seolens example.com --json | jq '.score'
 `);
 }
