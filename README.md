@@ -92,20 +92,30 @@ Or just ask in plain English:
 The IDE extensions don't yet support `/plugin install`, so install manually:
 
 ```bash
+# 1. Install the skill itself
 mkdir -p ~/.claude/skills && \
 cd ~/.claude/skills && \
 git clone https://github.com/bluegalaxydev/seolens.git && \
 cd seolens && \
 npm install
+
+# 2. Register the slash commands (so /seolens-pdf etc. show up)
+mkdir -p ~/.claude/commands && \
+cp ~/.claude/skills/seolens/commands/*.md ~/.claude/commands/
 ```
 
-Then in your IDE: open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) → **Reload Window**.
+Then quit VS Code (`Cmd+Q`) and reopen it.
 
 After reload, in any Claude Code chat:
 
-> "Use the seolens skill to audit https://example.com"
+```
+/seolens https://example.com         # quick chat audit
+/seolens-pdf https://example.com     # audit + saved PDF
+```
 
-Claude finds the skill automatically and runs the audit.
+Or use natural language:
+
+> "Use the seolens skill to audit https://example.com and save a PDF"
 
 ### Option 3 — Plain CLI (no Claude required)
 

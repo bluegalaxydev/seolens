@@ -2,9 +2,14 @@
  * Main audit orchestration. Fetches a URL, runs all checks, returns structured results.
  */
 import * as cheerio from 'cheerio';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fetchPage } from './fetcher.js';
 import { allChecks } from './checks/index.js';
 import { computeScore } from './scorer.js';
+
+export const LAST_AUDIT_PATH = join(tmpdir(), 'seolens-last-audit.json');
 
 /**
  * @param {string} url - The URL to audit.
@@ -67,7 +72,7 @@ export async function audit(url, options = {}) {
 
   const score = computeScore(results);
 
-  return {
+  const result = {
     url: ctx.url,
     requestedUrl: ctx.requestedUrl,
     fetchedAt: new Date().toISOString(),
@@ -78,6 +83,18 @@ export async function audit(url, options = {}) {
     results,
     summary: summarize(results),
   };
+
+  // Persist last audit to a known location so /seolens-pdf can pick it up.
+  // The /seolens-pdf command uses this to enforce ordering: PDF can only be
+  // generated from a prior audit (no double-running of checks).
+  try {
+    writeFileSync(LAST_AUDIT_PATH, JSON.stringify(result, null, 2), 'utf8');
+  } catch (err) {
+    // Non-fatal; audit still works without the cache file
+    if (process.env.DEBUG) console.error(`Could not write ${LAST_AUDIT_PATH}: ${err.message}`);
+  }
+
+  return result;
 }
 
 function summarize(results) {

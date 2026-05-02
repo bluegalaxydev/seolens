@@ -8,11 +8,11 @@
  *   seolens <url> --markdown      — output Markdown
  *   seolens <url> --out report.md — save Markdown to file
  */
-import { audit } from '../src/audit.js';
+import { audit, LAST_AUDIT_PATH } from '../src/audit.js';
 import { renderTerminal, renderMarkdown } from '../src/reporter.js';
 import { renderPptx } from '../src/pptx-reporter.js';
 import { renderPdf } from '../src/pdf-reporter.js';
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const args = process.argv.slice(2);
@@ -43,16 +43,41 @@ const pptxPath = pptxIndex >= 0 ? args[pptxIndex + 1] : null;
 const pdfIndex = args.indexOf('--pdf');
 const pdfPath = pdfIndex >= 0 ? args[pdfIndex + 1] : null;
 
+const fromCache = args.includes('--from-cache');
+
 (async () => {
   try {
-    if (!wantJson) {
-      process.stderr.write(`Auditing ${url}…\n`);
+    let result;
+    if (fromCache) {
+      // /seolens-pdf workflow: read the last audit from cache rather than re-running.
+      // This enforces the "/seolens first, /seolens-pdf second" pattern.
+      if (!existsSync(LAST_AUDIT_PATH)) {
+        process.stderr.write(`No cached audit found at ${LAST_AUDIT_PATH}.\nPlease run /seolens <url> first to generate one.\n`);
+        process.exit(4);
+      }
+      result = JSON.parse(readFileSync(LAST_AUDIT_PATH, 'utf8'));
+      // Verify the cached URL matches what was requested
+      if (url && !result.url.includes(url.replace(/^https?:\/\//, '').replace(/\/$/, ''))) {
+        process.stderr.write(`Cached audit is for ${result.url}, not ${url}.\nRun /seolens ${url} first, then /seolens-pdf.\n`);
+        process.exit(4);
+      }
+      // Check freshness — cache older than 1 hour is suspicious
+      const ageMs = Date.now() - new Date(result.fetchedAt).getTime();
+      if (ageMs > 3600_000) {
+        process.stderr.write(`Cached audit is ${Math.round(ageMs / 60000)} minutes old.\nFor fresh data, run /seolens <url> first.\n`);
+        process.exit(4);
+      }
+      process.stderr.write(`Using cached audit from ${new Date(result.fetchedAt).toLocaleTimeString()}\n`);
+    } else {
+      if (!wantJson) {
+        process.stderr.write(`Auditing ${url}…\n`);
+      }
+      result = await audit(url, {
+        onProgress: (i, total, id) => {
+          if (!wantJson) process.stderr.write(`  [${i}/${total}] ${id}\r`);
+        },
+      });
     }
-    const result = await audit(url, {
-      onProgress: (i, total, id) => {
-        if (!wantJson) process.stderr.write(`  [${i}/${total}] ${id}\r`);
-      },
-    });
 
     if (!wantJson) process.stderr.write(' '.repeat(60) + '\r');
 

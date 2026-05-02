@@ -1,63 +1,76 @@
 ---
 name: seolens-pdf
-description: Run a Seolens SEO audit and generate a polished PDF report saved to the user's Desktop. Use this when the user wants a deliverable they can share with clients or a team. Page count adapts to the audit findings.
+description: Generate a polished, multi-page PDF report from the most recent /seolens audit. Requires that /seolens has already been run on the same URL within the last hour. Saves the PDF to the user's Desktop with editorial-grade design — navy header, gold accent, donut score gauge, severity-coded findings, and prioritized action plan.
 argument-hint: <url>
 ---
 
-You are running the Seolens SEO auditor on the URL the user provided AND generating a PDF report file as the primary deliverable.
+You are generating a premium PDF deliverable from a Seolens audit that the user has already run via `/seolens`.
 
 **Argument:** $ARGUMENTS
 
 ## Workflow
 
-### Step 1: Parse the URL
+### Step 1: Verify a recent /seolens audit exists
 
-Extract the URL from `$ARGUMENTS`. If no URL is given, ask the user for one.
+The PDF command builds on top of `/seolens` results — it does NOT re-run the audit. Check that a cached audit is available:
 
-### Step 2: Compute a PDF output path
+```bash
+ls -la /tmp/seolens-last-audit.json 2>/dev/null
+```
 
-Default location is the user's Desktop:
+If the file does not exist, **stop and tell the user**:
+
+> "Please run `/seolens <url>` first — `/seolens-pdf` builds the PDF from your most recent audit. This avoids re-running 70+ checks unnecessarily."
+
+### Step 2: Verify the URL matches
+
+The cached audit was for a specific URL. Confirm it matches the URL the user passed (or use the cached URL if user didn't specify one):
+
+```bash
+CACHED_URL=$(node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/seolens-last-audit.json')).url)")
+echo "Cached audit URL: $CACHED_URL"
+```
+
+If the user passed a URL that doesn't match the cached one, ask them whether to:
+- (a) Re-run `/seolens <new-url>` first, or
+- (b) Generate the PDF for the cached URL.
+
+### Step 3: Compute output path
 
 ```bash
 DATE=$(date +%Y%m%d-%H%M%S)
-HOST=$(echo "<url>" | sed -E 's|https?://||; s|/.*||; s|/$||')
+HOST=$(echo "$CACHED_URL" | sed -E 's|https?://||; s|/.*||; s|/$||')
 OUT="$HOME/Desktop/seolens-$HOST-$DATE.pdf"
 ```
 
-### Step 3: Run audit + PDF generation in one command
+### Step 4: Generate the PDF from cache
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/seolens.js" "<url>" --pdf "$OUT" --json
+node "${CLAUDE_PLUGIN_ROOT}/bin/seolens.js" "$CACHED_URL" --from-cache --pdf "$OUT"
 ```
 
-The `--pdf` flag generates the report file. The `--json` flag returns structured data so you can write a short summary in chat.
+The `--from-cache` flag tells the CLI to load the audit from `/tmp/seolens-last-audit.json` rather than re-running it. This is fast (1-2 seconds) and guarantees the PDF reflects exactly what was shown in the previous chat audit.
 
-### Step 4: Tell the user where the PDF is
-
-Reply in this exact structure:
+### Step 5: Reply with file path + offer to open
 
 ```
 ✅ PDF report generated
 
-📊 Score: <X>/100 (Grade <Y> — <Label>)
-🟢 <N> passed   🔴 <N> critical   🟡 <N> warnings   🔵 <N> info
+📄 Saved to:
+   <full path>
 
-📄 PDF saved to:
-   <full path to PDF>
+The report includes:
+• Cover with score gauge and executive summary
+• Score breakdown across 6 marketing categories
+• Top 10 findings with severity badges
+• Prioritized action plan (Quick Wins / Medium Term / Strategic)
+• Methodology and scoring legend
 
-The report includes a cover with the score, an executive summary, all findings grouped by category with fix instructions, what's working, and recommended next steps.
-
-Open it now? Run: open "<full path to PDF>"
+Open it now? Run: open "<full path>"
 ```
 
-Make sure the file path is on its own line so the user can copy/paste it.
+### Step 6: Handle errors
 
-### Step 5: Handle errors
-
-- **PDF generation fails but audit succeeded** → Print the JSON summary in chat and tell the user PDF export failed (likely missing `pdfkit` — run `npm install` inside `${CLAUDE_PLUGIN_ROOT}`).
-- **Audit fails entirely** → Report the error, suggest checking the URL.
-- **`node_modules` missing** → Run `npm install` inside `${CLAUDE_PLUGIN_ROOT}` first, then retry.
-
-## Variant: PowerPoint instead of PDF
-
-If the user explicitly asks for a slide deck instead of a PDF, swap `--pdf` for `--pptx` and use a `.pptx` extension on the output path.
+- **`/tmp/seolens-last-audit.json` missing** → Tell user to run `/seolens <url>` first.
+- **Cached audit too old (>1 hour)** → CLI exits 4. Tell user to re-run `/seolens` for fresh data.
+- **PDF generation throws** → Likely missing `pdfkit` — instruct user to run `npm install` inside `${CLAUDE_PLUGIN_ROOT}`.
