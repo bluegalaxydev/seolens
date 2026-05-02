@@ -10,19 +10,31 @@ const fs = require('node:fs');
 let seolensLib;
 
 /**
- * Lazy-load the Seolens library. We do this on first use rather than at
- * activation so the extension stays cheap until the user actually runs an audit.
+ * Lazy-load the Seolens library. Tries (in order):
+ *   1. The published npm package `seolens` (production case)
+ *   2. The sibling source at `../src/index.js` (development case — F5 from inside the seolens repo)
  */
 async function loadSeolens() {
   if (seolensLib) return seolensLib;
+  const tried = [];
   try {
     seolensLib = await import('seolens');
     return seolensLib;
   } catch (err) {
-    throw new Error(
-      `Could not load 'seolens' npm package. Run \`npm install -g seolens\` then reload VS Code. (${err.message})`,
-    );
+    tried.push(`npm 'seolens': ${err.message}`);
   }
+  try {
+    const url = require('node:url').pathToFileURL(
+      path.join(__dirname, '..', 'src', 'index.js'),
+    ).href;
+    seolensLib = await import(url);
+    return seolensLib;
+  } catch (err) {
+    tried.push(`local ../src/index.js: ${err.message}`);
+  }
+  throw new Error(
+    `Could not load Seolens. Run \`npm install -g seolens\` then reload VS Code.\n\nTried:\n - ${tried.join('\n - ')}`,
+  );
 }
 
 function activate(context) {

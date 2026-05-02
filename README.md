@@ -61,6 +61,26 @@ No login. No dashboard. No credit card. Just an audit.
 
 ## Install
 
+### Inside Claude Code (in your terminal, VS Code, JetBrains, or Cursor)
+
+```
+/plugin install github:bluegalaxydev/seolens
+```
+
+Then in any Claude Code chat:
+
+```
+/seolens-audit https://example.com
+```
+
+Or just ask in plain English:
+
+> "Audit the SEO on https://example.com"
+
+Claude will invoke the `seolens` skill, run the audit, and explain the results with prioritized fixes. Add `--pptx` to get a branded PowerPoint report.
+
+### As a CLI (no Claude required)
+
 ```bash
 # One-off run (no install)
 npx seolens https://example.com

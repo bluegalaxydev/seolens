@@ -1,0 +1,17 @@
+{
+  "name": "seolens",
+  "version": "0.2.0",
+  "description": "Fast on-page SEO auditor — score any URL 0-100, get an actionable fix list. Includes a /seolens-audit slash command and PowerPoint export.",
+  "author": "bluegalaxydev",
+  "homepage": "https://github.com/bluegalaxydev/seolens",
+  "repository": "https://github.com/bluegalaxydev/seolens",
+  "license": "MIT",
+  "keywords": [
+    "seo",
+    "seo-audit",
+    "lighthouse",
+    "web-vitals",
+    "on-page-seo",
+    "audit"
+  ]
+}
