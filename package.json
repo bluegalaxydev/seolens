@@ -1,0 +1,53 @@
+{
+  "name": "seolens",
+  "version": "0.1.0",
+  "description": "Fast, AI-friendly SEO auditor. Scan any URL, get a 0-100 score and an actionable report in seconds. Zero config, zero dashboards.",
+  "keywords": [
+    "seo",
+    "seo-audit",
+    "seo-checker",
+    "seo-analyzer",
+    "lighthouse",
+    "site-audit",
+    "claude-skill",
+    "ai-skill",
+    "cli",
+    "web-vitals"
+  ],
+  "homepage": "https://github.com/bluegalaxydev/seolens#readme",
+  "bugs": {
+    "url": "https://github.com/bluegalaxydev/seolens/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bluegalaxydev/seolens.git"
+  },
+  "license": "MIT",
+  "author": "bluegalaxydev",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "bin": {
+    "seolens": "bin/seolens.js"
+  },
+  "files": [
+    "src",
+    "bin",
+    "SKILL.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node bin/seolens.js",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "kleur": "^4.1.5"
+  }
+}
