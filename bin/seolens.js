@@ -10,6 +10,7 @@
  */
 import { audit } from '../src/audit.js';
 import { renderTerminal, renderMarkdown } from '../src/reporter.js';
+import { renderPptx } from '../src/pptx-reporter.js';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -36,6 +37,8 @@ const wantJson = args.includes('--json');
 const wantMarkdown = args.includes('--markdown') || args.includes('--md');
 const outIndex = args.findIndex((a) => a === '--out' || a === '-o');
 const outPath = outIndex >= 0 ? args[outIndex + 1] : null;
+const pptxIndex = args.indexOf('--pptx');
+const pptxPath = pptxIndex >= 0 ? args[pptxIndex + 1] : null;
 
 (async () => {
   try {
@@ -50,6 +53,12 @@ const outPath = outIndex >= 0 ? args[outIndex + 1] : null;
 
     if (!wantJson) process.stderr.write(' '.repeat(60) + '\r');
 
+    if (pptxPath) {
+      const abs = resolve(process.cwd(), pptxPath);
+      await renderPptx(result, abs);
+      process.stderr.write(`PowerPoint report saved to ${abs}\n`);
+    }
+
     if (wantJson) {
       process.stdout.write(JSON.stringify(result, null, 2) + '\n');
     } else if (wantMarkdown || outPath) {
@@ -57,11 +66,11 @@ const outPath = outIndex >= 0 ? args[outIndex + 1] : null;
       if (outPath) {
         const abs = resolve(process.cwd(), outPath);
         writeFileSync(abs, md, 'utf8');
-        process.stderr.write(`Report saved to ${abs}\n`);
+        process.stderr.write(`Markdown report saved to ${abs}\n`);
       } else {
         process.stdout.write(md);
       }
-    } else {
+    } else if (!pptxPath) {
       process.stdout.write(renderTerminal(result));
     }
 
@@ -79,15 +88,17 @@ function printHelp() {
   Seolens — fast SEO auditor
 
   Usage:
-    seolens <url>                Run audit, print to terminal
-    seolens <url> --markdown     Print Markdown report to stdout
-    seolens <url> --json         Print full JSON results
-    seolens <url> --out FILE     Save Markdown report to FILE
+    seolens <url>                  Run audit, print to terminal
+    seolens <url> --markdown       Print Markdown report to stdout
+    seolens <url> --json           Print full JSON results
+    seolens <url> --out FILE       Save Markdown report to FILE
+    seolens <url> --pptx FILE      Save PowerPoint (.pptx) report to FILE
 
   Examples:
     seolens https://example.com
     seolens example.com --markdown > report.md
     seolens example.com --out report.md
+    seolens example.com --pptx report.pptx
     seolens example.com --json | jq '.score'
 `);
 }

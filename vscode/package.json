@@ -1,0 +1,74 @@
+{
+  "name": "seolens-vscode",
+  "displayName": "Seolens — SEO Auditor",
+  "description": "Run a fast SEO audit on any URL right from VS Code. 28 on-page checks, 0-100 score, actionable fixes.",
+  "version": "0.1.0",
+  "publisher": "bluegalaxydev",
+  "license": "MIT",
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other",
+    "Linters"
+  ],
+  "keywords": [
+    "seo",
+    "seo-audit",
+    "lighthouse",
+    "web-vitals",
+    "accessibility"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bluegalaxydev/seolens"
+  },
+  "homepage": "https://github.com/bluegalaxydev/seolens",
+  "activationEvents": [],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "seolens.auditUrl",
+        "title": "Seolens: Audit URL…",
+        "category": "Seolens"
+      },
+      {
+        "command": "seolens.auditCurrentFile",
+        "title": "Seolens: Audit Current HTML File",
+        "category": "Seolens"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "seolens.auditCurrentFile",
+          "when": "resourceExtname == .html",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Seolens",
+      "properties": {
+        "seolens.timeout": {
+          "type": "number",
+          "default": 15000,
+          "description": "Audit timeout in milliseconds."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "seolens": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "^2.22.0"
+  },
+  "scripts": {
+    "package": "vsce package",
+    "publish": "vsce publish"
+  }
+}

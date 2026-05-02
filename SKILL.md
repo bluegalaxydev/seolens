@@ -31,6 +31,14 @@ If the user wants a saved Markdown file:
 node bin/seolens.js <url> --out report.md
 ```
 
+If the user wants a **PowerPoint deck** (great for client deliverables — branded slides, one issue per slide, executive summary, and a "next steps" closing slide):
+
+```bash
+node bin/seolens.js <url> --pptx report.pptx
+```
+
+The `.pptx` file works in PowerPoint, Keynote, and Google Slides.
+
 If `node_modules` is missing, run `npm install` first inside the skill directory. The only runtime dependencies are `cheerio` (HTML parser) and `kleur` (terminal colors).
 
 ## Interpreting results

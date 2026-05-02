@@ -4,7 +4,6 @@
 
 **Fast, AI-friendly on-page SEO auditor. Score any URL in seconds.**
 
-[![npm](https://img.shields.io/npm/v/seolens?color=cb3837&logo=npm)](https://www.npmjs.com/package/seolens)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518-brightgreen.svg)]()
 [![Stars](https://img.shields.io/github/stars/bluegalaxydev/seolens?style=social)](https://github.com/bluegalaxydev/seolens)
@@ -12,6 +11,8 @@
 ```bash
 npx seolens https://example.com
 ```
+
+![Seolens demo](demo.svg)
 
 </div>
 
@@ -92,18 +93,28 @@ seolens https://example.com
 seolens https://example.com --out report.md
 ```
 
-### 3. Get JSON for further processing
+### 3. Generate a PowerPoint client report
+```bash
+seolens https://example.com --pptx report.pptx
+```
+
+A branded slide deck with cover, executive summary, score-by-category breakdown, one slide per issue with fix instructions, and a closing "what to do next" slide. Open it in PowerPoint, Keynote, or Google Slides — perfect for client deliverables.
+
+### 4. Get JSON for further processing
 ```bash
 seolens https://example.com --json | jq '.score'
 ```
 
-### 4. Use as a Claude skill
+### 5. Use as a Claude skill
 Drop the repo into your Claude skills folder and ask:
 > "Hey Claude, audit https://my-site.com for SEO issues"
 
 Claude will run Seolens, parse the JSON, and explain results in plain English with prioritized fixes.
 
-### 5. Fail your CI build on regressions
+### 6. Use inside VS Code
+Install the **[Seolens VS Code extension](https://github.com/bluegalaxydev/seolens/tree/main/vscode)**. Run `Seolens: Audit URL…` from the Command Palette and see results in a side panel — with one-click export to PowerPoint or Markdown.
+
+### 7. Fail your CI build on regressions
 ```yaml
 # .github/workflows/seo.yml
 - run: npx seolens https://staging.example.com
@@ -183,12 +194,13 @@ The free version audits one URL with 25 checks. **Seolens Pro** adds:
 
 ```
 Usage:
-  seolens <url>                Run audit, print colored terminal report
-  seolens <url> --markdown     Print Markdown report to stdout
-  seolens <url> --json         Print full JSON results
-  seolens <url> --out FILE     Save Markdown report to FILE
-  seolens --version            Show version
-  seolens --help               Show this help
+  seolens <url>                  Run audit, print colored terminal report
+  seolens <url> --markdown       Print Markdown report to stdout
+  seolens <url> --json           Print full JSON results
+  seolens <url> --out FILE       Save Markdown report to FILE
+  seolens <url> --pptx FILE      Save PowerPoint (.pptx) report to FILE
+  seolens --version              Show version
+  seolens --help                 Show this help
 
 Exit codes:
   0   Score >= 70

@@ -9,4 +9,5 @@
 export { audit } from './audit.js';
 export { computeScore } from './scorer.js';
 export { renderTerminal, renderMarkdown } from './reporter.js';
+export { renderPptx } from './pptx-reporter.js';
 export { allChecks, categories } from './checks/index.js';
