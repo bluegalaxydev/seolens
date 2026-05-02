@@ -34,8 +34,14 @@ export async function audit(url, options = {}) {
 
   const results = [];
   let i = 0;
+  let lastCategory = null;
   for (const check of allChecks) {
     i++;
+    // Stage announcement when category changes — gives users a sense of progress
+    if (check.category !== lastCategory) {
+      if (onProgress) onProgress(i, allChecks.length, `Stage: ${check.category}`, true);
+      lastCategory = check.category;
+    }
     if (onProgress) onProgress(i, allChecks.length, check.id);
     try {
       const out = await check.run(ctx);
