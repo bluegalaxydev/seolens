@@ -2,14 +2,17 @@
 
 # Seolens
 
-**Fast, AI-friendly on-page SEO auditor. Score any URL in seconds.**
+**The fastest, most thorough on-page SEO auditor — runs as a Claude Code skill, a CLI, or a VS Code extension.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518-brightgreen.svg)]()
+[![Checks](https://img.shields.io/badge/checks-106-blue.svg)]()
+[![Categories](https://img.shields.io/badge/categories-22-blue.svg)]()
 [![Stars](https://img.shields.io/github/stars/bluegalaxydev/seolens?style=social)](https://github.com/bluegalaxydev/seolens)
 
-```bash
-npx seolens https://example.com
+```
+/seolens https://your-site.com           →  audit + chat summary
+/seolens-pdf https://your-site.com       →  audit + 8-page PDF report
 ```
 
 ![Seolens demo](demo.svg)
@@ -18,304 +21,251 @@ npx seolens https://example.com
 
 ---
 
+## 🚀 Quick Start (60 seconds)
+
+**Already using Claude Code in VS Code, Cursor, or JetBrains?**
+
+```bash
+# 1. Install the skill
+mkdir -p ~/.claude/skills && cd ~/.claude/skills && \
+  git clone https://github.com/bluegalaxydev/seolens.git && \
+  cd seolens && npm install
+
+# 2. Register the slash commands
+mkdir -p ~/.claude/commands && \
+  cp ~/.claude/skills/seolens/commands/*.md ~/.claude/commands/
+
+# 3. Quit your IDE (Cmd+Q), reopen, then in any Claude Code chat:
+#    /seolens https://your-site.com
+#    /seolens-pdf https://your-site.com
+```
+
+That's it. Three commands. The PDF lands on your Desktop.
+
+> **Using the Claude Code CLI in your terminal instead?** Just run `/plugin install github:bluegalaxydev/seolens` from inside `claude`.
+
+---
+
 ## What is Seolens?
 
-Seolens is a **zero-config** SEO auditor that you run from your terminal, your CI pipeline, your IDE, or directly inside Claude. Point it at any URL and 5 seconds later you get a 0–100 score, a letter grade, and a prioritized list of fixes — each with a one-line "how to fix it" hint.
+Seolens audits any URL across **106 SEO checks in 22 categories** and produces:
 
-No login. No dashboard. No credit card. Just an audit.
+1. **A chat summary** in Claude Code with score, top issues, and what's working — perfect for quick iteration
+2. **An 8-page PDF report** with editorial-grade design — perfect for client deliverables, board reviews, or portfolio audits
 
-```
-  Seolens — SEO audit
-  ────────────────────────────────────────────────────────────
-  URL:    https://example.com
-  Score:  72/100 (C — Fair)
-  Stats:  18 passed, 2 critical, 4 warning, 1 info
+It runs in **5–10 seconds**, requires no signup, no dashboard, and no API keys. The only thing it doesn't do is full-site crawling and backlink analysis — those live in [Seolens Pro](https://github.com/bluegalaxydev/seolens-pro).
 
-  Issues found:
+## How it works (the two-command workflow)
 
-  Meta Tags
-  ✖ Meta description present
-     Page has no <meta name="description">.
-     → Add a unique meta description summarizing the page in 120-160 chars.
-
-  ⚠ Title length is 30-60 characters
-     Title is only 18 chars (recommended: 30-60).
-     → Expand the title to 30-60 characters with primary keywords near the front.
-
-  Headings
-  ✖ H1 heading present
-     Page has no <h1>.
-     → Add a single <h1> with the primary topic of the page.
-  ...
-```
-
-## Why Seolens?
-
-| | Seolens (free) | Screaming Frog | Ahrefs Site Audit | Semrush |
-|---|---|---|---|---|
-| Install in one command | ✅ `npx seolens` | ❌ desktop app | ❌ web only | ❌ web only |
-| Runs in CI | ✅ exits non-zero on bad score | ❌ | ❌ | ❌ |
-| Works offline as a skill | ✅ | ❌ | ❌ | ❌ |
-| Open source | ✅ MIT | ❌ | ❌ | ❌ |
-| Price | **Free forever** | $259/yr | $99/mo | $130/mo |
-
-## Install
-
-Pick the path that matches how you use Claude Code:
-
-### Option 1 — Claude Code CLI (terminal)
-
-If you run `claude` in your terminal, install with one command:
+Seolens uses two slash commands designed to work together:
 
 ```
-/plugin install github:bluegalaxydev/seolens
+/seolens <url>          ← run this FIRST
+                          • Runs all 106 checks (5-10 seconds)
+                          • Shows summary in chat
+                          • Caches results to /tmp/seolens-last-audit.json
+
+/seolens-pdf <url>      ← run this SECOND (within 1 hour)
+                          • Reads the cached audit (1-2 seconds, no re-running)
+                          • Generates 8-page PDF
+                          • Saves to ~/Desktop/seolens-<host>-<timestamp>.pdf
 ```
 
-Then anywhere in a Claude Code session:
+This is intentional — `/seolens-pdf` cannot run by itself. You must always do a `/seolens` audit first. This avoids accidentally re-running 106 checks just to regenerate a PDF.
 
-```
-/seolens https://example.com         # quick audit, chat output only
-/seolens-pdf https://example.com     # audit + saves a polished PDF to your Desktop
-```
+If you try `/seolens-pdf` without a fresh `/seolens` audit, you'll get a clear error telling you what to do.
 
-Or just ask in plain English:
+## What gets checked
 
-> "Audit the SEO on https://example.com"
-> "Audit my-site.com and save a PDF I can send to my client"
-
-Or just ask in plain English:
-
-> "Audit the SEO on https://example.com"
-
-### Option 2 — VS Code / Cursor / JetBrains (Claude Code extension)
-
-The IDE extensions don't yet support `/plugin install`, so install manually:
-
-```bash
-# 1. Install the skill itself
-mkdir -p ~/.claude/skills && \
-cd ~/.claude/skills && \
-git clone https://github.com/bluegalaxydev/seolens.git && \
-cd seolens && \
-npm install
-
-# 2. Register the slash commands (so /seolens-pdf etc. show up)
-mkdir -p ~/.claude/commands && \
-cp ~/.claude/skills/seolens/commands/*.md ~/.claude/commands/
-```
-
-Then quit VS Code (`Cmd+Q`) and reopen it.
-
-After reload, in any Claude Code chat:
-
-```
-/seolens https://example.com         # quick chat audit
-/seolens-pdf https://example.com     # audit + saved PDF
-```
-
-Or use natural language:
-
-> "Use the seolens skill to audit https://example.com and save a PDF"
-
-### Option 3 — Plain CLI (no Claude required)
-
-```bash
-# One-off run (no install)
-npx seolens https://example.com
-
-# Global install
-npm install -g seolens
-seolens https://example.com
-
-# As a library
-npm install seolens
-```
-
-### Option 4 — VS Code extension (standalone)
-
-A dedicated VS Code extension (separate from the Claude Code integration) lives in [`vscode/`](./vscode). Install with:
-
-```bash
-cd vscode && npm install && npx vsce package
-code --install-extension seolens-vscode-*.vsix
-```
-
-Run `Seolens: Audit URL…` from the Command Palette.
-
-```js
-import { audit, renderMarkdown } from 'seolens';
-
-const result = await audit('https://example.com');
-console.log(`Score: ${result.score.value}/100`);
-console.log(renderMarkdown(result));
-```
-
-## Use cases
-
-### 1. Audit on the command line
-```bash
-seolens https://example.com
-```
-
-### 2. Save a Markdown report
-```bash
-seolens https://example.com --out report.md
-```
-
-### 3. Generate a polished PDF report
-```bash
-seolens https://example.com --pdf report.pdf
-```
-
-A multi-page PDF with cover (big score), executive summary, all findings grouped by category, what's working, and recommendations. Page count adapts to content. Perfect for client deliverables.
-
-### 3b. Generate a PowerPoint deck
-```bash
-seolens https://example.com --pptx report.pptx
-```
-
-Same content, slide format. Open in PowerPoint, Keynote, or Google Slides.
-
-### 4. Get JSON for further processing
-```bash
-seolens https://example.com --json | jq '.score'
-```
-
-### 5. Use as a Claude skill
-Drop the repo into your Claude skills folder and ask:
-> "Hey Claude, audit https://my-site.com for SEO issues"
-
-Claude will run Seolens, parse the JSON, and explain results in plain English with prioritized fixes.
-
-### 6. Use inside VS Code
-Install the **[Seolens VS Code extension](https://github.com/bluegalaxydev/seolens/tree/main/vscode)**. Run `Seolens: Audit URL…` from the Command Palette and see results in a side panel — with one-click export to PowerPoint or Markdown.
-
-### 7. Fail your CI build on regressions
-```yaml
-# .github/workflows/seo.yml
-- run: npx seolens https://staging.example.com
-  # Exits non-zero when score < 70
-```
-
-## What gets checked (free tier — 25 checks)
+**106 checks across 22 categories**, organized into 6 marketing-grade scoring buckets:
 
 <table>
 <tr>
-<td valign="top">
+<td valign="top" width="50%">
 
-**Meta Tags**
-- Title tag present
-- Title length 30-60 chars
-- Meta description present
-- Meta description length 120-160 chars
-- Mobile viewport meta tag
-- Character encoding declared
-- HTML lang attribute
+### SEO & Discoverability (20%)
+- **Meta Tags** — title, description, viewport, charset, lang
+- **Headings** — H1 presence, single H1, hierarchy, length
+- **Indexability** — meta robots, X-Robots-Tag, robots.txt, canonical
+- **Crawlability** — URL params, length, sitemap, www, HTTPS redirect
+- **Structured Data** — JSON-LD presence and validity
+- **Schema Deep** — Organization, WebSite SearchBox, FAQ, Article
+- **Links** — internal links, anchor text, rel attributes
 
-**Headings**
-- H1 heading present
-- Single H1 per page
-- Heading hierarchy well-formed
-- H1 content meaningful
+### Technical & Performance (20%)
+- **Technical** — HTTPS, canonical, status, response time, robots.txt, sitemap
+- **Performance** — TTFB, page weight, inline CSS, render-blocking, gzip/brotli, resource hints, font preload, DOM size
+- **HTML Compliance** — DOCTYPE, deprecated tags, semantic landmarks, duplicate metas
+- **Mobile** — viewport scalable, srcset, font size, tap targets
+- **Page Experience** — CLS risk factors, popups, lazy-loading
 
-**Images**
-- All images have alt text
-- Images have width/height
+### Content & Messaging (15%)
+- **Content Quality** — value prop, headline length, title↔H1 alignment, paragraphs
+- **Social** — Open Graph title/description/image, Twitter card
+- **Internationalization** — hreflang, x-default, lang/content matching, RTL
 
 </td>
-<td valign="top">
+<td valign="top" width="50%">
 
-**Links**
-- Page has internal links
-- Anchor text descriptive
-- External links have `rel`
+### Conversion Optimization (15%)
+- **Conversion** — CTAs, action verbs, lead capture, contact info, social proof, urgency
+- **E-commerce** — Product schema, Review schema, BreadcrumbList, pricing visibility
 
-**Technical**
-- HTTPS
-- Canonical URL declared
-- Page returns 200 OK
-- Response time under 1.5s
-- robots.txt reachable
-- sitemap.xml reachable
+### Brand & Trust (15%)
+- **Trust & Legitimacy** — privacy policy, terms, about page, copyright, security badges, business identifiers
+- **Accessibility** — form labels, button text, alt-text quality, ARIA validity, skip links, tabindex
+- **Security Headers** — HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, mixed content
 
-**Social**
-- Open Graph title
-- Open Graph description
-- Open Graph image
-- Twitter card type
-
-**Structured Data**
-- JSON-LD present
-- JSON-LD parses correctly
+### Off-page Authority (15%)
+- **Images** — alt text coverage, dimensions
+- **Backlinks & Authority** — backlink profile note (Pro), social profile links, outbound authority
 
 </td>
 </tr>
 </table>
 
+Every failed check comes with a **one-line "how to fix"** so you (or your AI assistant) can immediately act on it.
+
+## The 8-page PDF report
+
+Each `/seolens-pdf` run produces a polished, editorial-grade PDF with:
+
+| # | Page | Contains |
+|---|------|----------|
+| 1 | Cover | Big donut score gauge, executive summary card, navy + gold premium design |
+| 2 | Score Breakdown | 6 marketing-bucket bar chart + detailed weights table |
+| 3 | Key Findings | Top 10 issues with severity badges, navy-header table |
+| 4 | What's Working Well | 12 strength cards (2-column grid, green accent) |
+| 5 | Action Plan — Quick Wins | This-week priorities, green theme |
+| 6 | Action Plan — Medium Term | 1-3 month items, blue theme |
+| 7 | Action Plan — Strategic | 3-6 month items, navy theme |
+| 8 | Methodology | Category weights + scoring legend |
+
+Cream background (not flat white), subtle gold accent rules, severity-coded badges, and editorial typography. Send it to a client without modification.
+
+## Other ways to use Seolens
+
+### Plain CLI (no Claude required)
+
+```bash
+npx seolens https://example.com                  # one-off
+npm install -g seolens && seolens example.com    # global
+```
+
+CLI flags:
+```
+seolens <url>              → colored terminal report
+seolens <url> --json       → full JSON
+seolens <url> --markdown   → Markdown
+seolens <url> --pdf FILE   → 8-page PDF
+seolens <url> --pptx FILE  → PowerPoint deck
+```
+
+### As a JS library
+
+```js
+import { audit, renderPdf, renderMarkdown } from 'seolens';
+
+const result = await audit('https://example.com');
+console.log(`Score: ${result.score.value}/100`);
+
+// Generate a PDF
+await renderPdf(result, '/tmp/report.pdf');
+```
+
+### In your CI pipeline
+
+```yaml
+- run: npx seolens https://staging.example.com
+  # Exit code is 0 if score >= 70, else 1 — gate deploys on SEO regressions
+```
+
+### As a VS Code extension (separate from Claude Code)
+
+A standalone extension in [`vscode/`](./vscode) — adds a "Seolens: Audit URL…" command palette entry with a webview results panel and PPT/MD export buttons.
+
+## Troubleshooting
+
+**❌ `/plugin isn't available in this environment`**
+You're using the Claude Code IDE extension (VS Code/Cursor/JetBrains), which doesn't yet support `/plugin install`. Use the Quick Start at the top — manually clone the skill and copy commands.
+
+**❌ `/seolens-pdf` returns "No cached audit found"**
+You need to run `/seolens <url>` first. The PDF command builds on top of a recent audit. Re-run the same URL with `/seolens`, then immediately run `/seolens-pdf`.
+
+**❌ `/seolens-pdf` returns "Cached audit is for X, not Y"**
+The cache is for a different URL. Run `/seolens <new-url>` first to refresh.
+
+**❌ `/seolens-pdf` returns "Cached audit is N minutes old"**
+The cache expires after 1 hour. Re-run `/seolens <url>` for fresh data.
+
+**❌ Slash commands `/seolens-pdf` etc. don't show up in autocomplete**
+You probably skipped step 2 of the Quick Start (copying commands to `~/.claude/commands/`). Run:
+```bash
+mkdir -p ~/.claude/commands && \
+  cp ~/.claude/skills/seolens/commands/*.md ~/.claude/commands/
+```
+Then **fully quit and reopen** your IDE (Cmd+Q, not just Reload Window).
+
+**❌ "Could not load Seolens" error**
+Run `npm install` inside `~/.claude/skills/seolens/`:
+```bash
+cd ~/.claude/skills/seolens && npm install
+```
+
+**❌ Audit fails on local files (`file://...`)**
+Currently Seolens fetches over HTTP/HTTPS only. For local development, run a dev server (e.g. `python3 -m http.server`) and audit `http://localhost:8000`.
+
+**❌ The audit is slow**
+106 checks normally take 5-10 seconds. If it's slower, the target site is slow to respond (server TTFB). The audit waits up to 15 seconds before timing out — pass `--timeout 30000` for slow sites.
+
+## Updating Seolens
+
+To pull the latest checks and PDF improvements:
+
+```bash
+cd ~/.claude/skills/seolens && git pull && npm install && \
+  cp ~/.claude/skills/seolens/commands/*.md ~/.claude/commands/
+```
+
+Then `Cmd+Q` your IDE and reopen.
+
 ## Want more? → Seolens Pro
 
-The free version audits one URL with 25 checks. **Seolens Pro** adds:
+The free version covers single-URL auditing with 106 checks. **[Seolens Pro](https://github.com/bluegalaxydev/seolens-pro)** adds:
 
-- 🕷️ **Full-site crawl** — audit thousands of pages with one command
-- ⚡ **Core Web Vitals** — LCP, CLS, INP measurement
-- 🌍 **hreflang validation** for international sites
-- 🤖 **AI-powered fix suggestions** — not just "title is missing", but "recommended title: '...'"
-- 📄 **White-label PDF reports** for client deliverables
+- 🕷️ **Full-site crawl** — audit up to 50,000 pages with one command
+- ⚡ **Core Web Vitals** — real LCP, CLS, INP measurements
+- 🤖 **AI-powered fix suggestions** — not just "title is missing", but "recommended title: 'Independent Insurance Agency in Huntington Beach, CA'"
+- 🔗 **Real backlink data** — referring domains, domain authority, anchor text (via DataForSEO/Ahrefs API)
+- 📊 **White-label PDF reports** with your logo and brand colors
 - 🔔 **Scheduled monitoring** — get alerts when scores drop
-- 🧠 **80+ advanced checks** — schema depth, internal linking analysis, content gap detection
+- 🌍 **hreflang validation** at full scale
+- 🧠 **80+ additional advanced checks**
 
-→ **[Get Seolens Pro](https://github.com/bluegalaxydev/seolens-pro)** *(coming soon)*
-
-## CLI reference
-
-```
-Usage:
-  seolens <url>                  Run audit, print colored terminal report
-  seolens <url> --markdown       Print Markdown report to stdout
-  seolens <url> --json           Print full JSON results
-  seolens <url> --out FILE       Save Markdown report to FILE
-  seolens <url> --pptx FILE      Save PowerPoint (.pptx) report to FILE
-  seolens --version              Show version
-  seolens --help                 Show this help
-
-Exit codes:
-  0   Score >= 70
-  1   Score < 70 (useful in CI)
-  2   Error during audit
-```
-
-## Library API
-
-```ts
-audit(url: string, options?: {
-  timeout?: number;     // ms, default 15000
-  onProgress?: (current, total, checkId) => void;
-}): Promise<AuditResult>
-
-interface AuditResult {
-  url: string;
-  score: { value: number; grade: 'A'|'B'|'C'|'D'|'F'; label: string };
-  summary: { passed: number; critical: number; warning: number; info: number; skipped: number };
-  results: CheckResult[];
-}
-
-renderMarkdown(audit: AuditResult): string
-renderTerminal(audit: AuditResult): string
-```
+Pricing starts at $29/month. → **[Learn more](https://github.com/bluegalaxydev/seolens-pro)**
 
 ## Roadmap
 
-- [x] 25 core on-page checks
-- [x] CLI with colored output
-- [x] Markdown + JSON output
-- [x] Claude skill manifest
-- [ ] VS Code extension wrapper *(in progress)*
-- [ ] Sitemap-driven multi-page audit (Pro)
-- [ ] Core Web Vitals integration (Pro)
+- [x] 106 on-page checks across 22 categories
+- [x] CLI with colored terminal output
+- [x] Markdown + JSON + PDF + PPTX outputs
+- [x] Claude Code plugin (skills + slash commands)
+- [x] VS Code extension wrapper
+- [x] Premium 8-page PDF report
+- [ ] Sitemap-driven multi-page audit (in Pro)
+- [ ] Real Core Web Vitals via headless browser (in Pro)
+- [ ] Live monitoring + change alerts (in Pro)
 
 ## Contributing
 
-Pull requests welcome — for new checks, please add a corresponding entry under `src/checks/`. By contributing you agree to the [Contributor License Agreement](CONTRIBUTING.md).
+Pull requests welcome. To add a new check:
+
+1. Pick the right category file in `src/checks/` (or create a new one)
+2. Add an entry to the exported array following the existing pattern
+3. Register it in `src/checks/index.js` if it's a new category
+4. Run `node bin/seolens.js https://example.com --json` to verify it executes
+
+By contributing, you agree to the [Contributor License Agreement](CONTRIBUTING.md).
 
 ## License
 
@@ -325,8 +275,8 @@ MIT © 2026 [bluegalaxydev](https://github.com/bluegalaxydev)
 
 <div align="center">
 
-If Seolens saves you time, **please ⭐ star the repo** — it's the easiest way to support the project.
+⭐ If Seolens saves you time, **star the repo** — it's the single best way to support the project.
 
-[Report a bug](https://github.com/bluegalaxydev/seolens/issues) · [Request a check](https://github.com/bluegalaxydev/seolens/issues/new?template=new-check.md) · [Seolens Pro](https://github.com/bluegalaxydev/seolens-pro)
+[Report a bug](https://github.com/bluegalaxydev/seolens/issues) · [Request a check](https://github.com/bluegalaxydev/seolens/issues/new) · [Seolens Pro](https://github.com/bluegalaxydev/seolens-pro)
 
 </div>
