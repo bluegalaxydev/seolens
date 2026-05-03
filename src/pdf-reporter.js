@@ -83,6 +83,7 @@ export async function renderPdf(audit, outPath) {
     coverPage(doc, audit, newPage);
     scoreBreakdownPage(doc, audit, newPage);
     keyFindingsPage(doc, audit, newPage);
+    strengthsPage(doc, audit, newPage);
     actionPlanPages(doc, audit, newPage);
     methodologyPage(doc, audit, newPage);
 
@@ -442,64 +443,185 @@ function keyFindingsPage(doc, audit, newPage) {
   }
 }
 
-// ============ PAGES 4+: ACTION PLAN ============
-function actionPlanPages(doc, audit, newPage) {
+// ============ PAGE 4: STRENGTHS / WHAT'S WORKING WELL ============
+function strengthsPage(doc, audit, newPage) {
   newPage();
 
   let y = HEADER_H + 30;
 
   doc.moveTo(MARGIN, y).lineTo(PAGE.W - MARGIN, y).strokeColor(C.navy).lineWidth(2).stroke();
   y += 12;
-  doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(20).text('PRIORITIZED ACTION PLAN', MARGIN, y);
-  y += 32;
+  doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(20).text("WHAT'S WORKING WELL", MARGIN, y);
+  y += 14;
+  doc.fillColor(C.muted).font('Helvetica-Oblique').fontSize(10).text(
+    'A strong foundation. These checks passed cleanly — preserve them as you make changes.',
+    MARGIN, y, { width: PAGE.W - MARGIN * 2 - 4 },
+  );
+  y += 30;
 
+  const passed = audit.results.filter((r) => r.passed && r.severity !== 'skip');
+
+  // Group passing checks by category, take top 12 most diverse
+  const byCategory = {};
+  for (const r of passed) {
+    if (!byCategory[r.category]) byCategory[r.category] = [];
+    byCategory[r.category].push(r);
+  }
+  // Round-robin pick from each category for variety, cap at 12
+  const picked = [];
+  let i = 0;
+  while (picked.length < 12) {
+    let added = false;
+    for (const cat of Object.keys(byCategory)) {
+      if (byCategory[cat][i]) {
+        picked.push(byCategory[cat][i]);
+        added = true;
+        if (picked.length >= 12) break;
+      }
+    }
+    if (!added) break;
+    i++;
+  }
+
+  if (picked.length === 0) {
+    doc.fillColor(C.muted).font('Helvetica').fontSize(11).text('No passing checks to highlight.', MARGIN, y);
+    return;
+  }
+
+  // 2-column card grid: 6 rows × 2 cols
+  const colW = (PAGE.W - MARGIN * 2 - 16) / 2;
+  const cardH = 56;
+  const colGap = 16;
+  const rowGap = 10;
+
+  for (let idx = 0; idx < picked.length; idx++) {
+    const col = idx % 2;
+    const row = Math.floor(idx / 2);
+    const cardX = MARGIN + col * (colW + colGap);
+    const cardY = y + row * (cardH + rowGap);
+
+    const r = picked[idx];
+
+    // Card background (white panel on cream)
+    doc.roundedRect(cardX, cardY, colW, cardH, 4).fillColor(C.bgPanel).fill();
+    // Green left accent strip
+    doc.rect(cardX, cardY, 3, cardH).fill(C.green);
+    // Subtle hairline border
+    doc.roundedRect(cardX, cardY, colW, cardH, 4).strokeColor(C.hairline).lineWidth(0.5).stroke();
+
+    // Green checkmark
+    doc.fillColor(C.green).font('Helvetica-Bold').fontSize(14).text('✓', cardX + 12, cardY + 8, { width: 18 });
+
+    // Category label (small caps gold)
+    doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(7).text(
+      (categories[r.category] || r.category).toUpperCase(),
+      cardX + 32, cardY + 10,
+      { width: colW - 40, characterSpacing: 1.2 },
+    );
+
+    // Check label (bold)
+    doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(10).text(
+      r.label,
+      cardX + 32, cardY + 22,
+      { width: colW - 40, height: 14, ellipsis: true, lineBreak: false },
+    );
+
+    // Check message (muted, single line)
+    doc.fillColor(C.muted).font('Helvetica').fontSize(8.5).text(
+      r.message || '',
+      cardX + 32, cardY + 38,
+      { width: colW - 40, height: 14, ellipsis: true, lineBreak: false },
+    );
+  }
+
+  // Bottom note
+  const totalRows = Math.ceil(picked.length / 2);
+  y = y + totalRows * (cardH + rowGap) + 16;
+  doc.fillColor(C.muted).font('Helvetica-Oblique').fontSize(9).text(
+    `${audit.results.filter((r) => r.passed).length} of ${audit.results.length} total checks passed cleanly. Showing the top ${picked.length} for diversity across categories.`,
+    MARGIN, y, { width: PAGE.W - MARGIN * 2, align: 'center' },
+  );
+}
+
+// ============ PAGES 5+: ACTION PLAN (each bucket gets its own page) ============
+function actionPlanPages(doc, audit, newPage) {
   const buckets = bucketActions(audit);
+  const nonEmpty = buckets.filter((b) => b.items.length > 0);
+  let firstPage = true;
 
-  for (const bucket of buckets) {
-    if (bucket.items.length === 0) continue;
+  for (const bucket of nonEmpty) {
+    newPage();
+    let y = HEADER_H + 30;
+
+    // Section title (only on first action plan page)
+    if (firstPage) {
+      doc.moveTo(MARGIN, y).lineTo(PAGE.W - MARGIN, y).strokeColor(C.navy).lineWidth(2).stroke();
+      y += 12;
+      doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(20).text('PRIORITIZED ACTION PLAN', MARGIN, y);
+      y += 14;
+      doc.fillColor(C.muted).font('Helvetica-Oblique').fontSize(10).text(
+        'Recommendations sorted by urgency. Quick Wins are highest-leverage and should be tackled this week.',
+        MARGIN, y, { width: PAGE.W - MARGIN * 2 - 4 },
+      );
+      y += 28;
+      firstPage = false;
+    } else {
+      // Subsequent pages: just a hairline + page subtitle
+      doc.moveTo(MARGIN, y).lineTo(PAGE.W - MARGIN, y).strokeColor(C.gold).lineWidth(1).stroke();
+      y += 12;
+      doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(11).text('PRIORITIZED ACTION PLAN  (continued)', MARGIN, y, { characterSpacing: 1.5 });
+      y += 24;
+    }
 
     // Header band
-    if (y + 60 > PAGE.H - FOOTER_H) {
-      newPage();
-      y = HEADER_H + 30;
-    }
+    doc.rect(MARGIN, y, PAGE.W - MARGIN * 2, 30).fill(bucket.color);
+    doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(13).text(bucket.title, MARGIN + 14, y + 9);
+    // Item count badge on the right
+    doc.fillColor('#FFFFFF').font('Helvetica').fontSize(10).text(`${bucket.items.length} item${bucket.items.length === 1 ? '' : 's'}`, PAGE.W - MARGIN - 80, y + 10, { width: 70, align: 'right' });
+    y += 30;
 
-    doc.rect(MARGIN, y, PAGE.W - MARGIN * 2, 26).fill(bucket.color);
-    doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(12).text(bucket.title, MARGIN + 12, y + 7);
-    y += 26;
-
-    // Items — single-line compact format
+    // Items — generous spacing now that each bucket has its own page
     for (let i = 0; i < bucket.items.length; i++) {
       const item = bucket.items[i];
-      const numText = `${i + 1}.`;
-      const text = item.fix ? `${item.label}. ${item.fix}` : `${item.label}. ${item.message || ''}`;
+      const numText = `${i + 1}`;
 
-      doc.font('Helvetica').fontSize(10);
-      const itemH = Math.max(24, doc.heightOfString(text, { width: PAGE.W - MARGIN * 2 - 60, height: 32, ellipsis: true }) + 10);
+      // Each card is taller and richer
+      const cardH = 56;
 
-      if (y + itemH > PAGE.H - FOOTER_H - 20) {
-        newPage();
-        y = HEADER_H + 30;
-        // Continued header band
-        doc.rect(MARGIN, y, PAGE.W - MARGIN * 2, 24).fill(bucket.color);
-        doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(11).text(`${bucket.title} (continued)`, MARGIN + 12, y + 7);
-        y += 24;
-      }
+      // Card background (white panel on cream)
+      doc.roundedRect(MARGIN, y, PAGE.W - MARGIN * 2, cardH, 4).fillColor(C.bgPanel).fill();
+      // Bucket-color left accent strip
+      doc.rect(MARGIN, y, 4, cardH).fill(bucket.color);
+      // Subtle hairline border
+      doc.roundedRect(MARGIN, y, PAGE.W - MARGIN * 2, cardH, 4).strokeColor(C.hairline).lineWidth(0.5).stroke();
 
-      // Alternating row backgrounds
-      doc.rect(MARGIN, y, PAGE.W - MARGIN * 2, itemH).fillColor(i % 2 === 0 ? C.bgPanel : C.bgAlt).fill();
+      // Number circle
+      doc.circle(MARGIN + 28, y + cardH / 2, 12).fill(bucket.color);
+      doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(11).text(numText, MARGIN + 22, y + cardH / 2 - 6, { width: 14, align: 'center' });
 
-      // Gold accent bar on left of each item
-      doc.rect(MARGIN, y, 2, itemH).fill(bucket.color);
+      // Category eyebrow (gold caps)
+      doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(7).text(
+        (categories[item.category] || item.category).toUpperCase(),
+        MARGIN + 50, y + 8,
+        { width: PAGE.W - MARGIN * 2 - 60, characterSpacing: 1.2 },
+      );
 
-      // Number
-      doc.fillColor(bucket.color).font('Helvetica-Bold').fontSize(11).text(numText, MARGIN + 12, y + 6, { width: 30 });
-      // Text (constrain height to 2 lines max with ellipsis)
-      doc.fillColor(C.bodyText).font('Helvetica').fontSize(10).text(text, MARGIN + 50, y + 6, { width: PAGE.W - MARGIN * 2 - 60, height: 28, ellipsis: true, lineGap: 1 });
+      // Issue label (bold)
+      doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(11).text(
+        item.label,
+        MARGIN + 50, y + 19,
+        { width: PAGE.W - MARGIN * 2 - 60, height: 14, ellipsis: true, lineBreak: false },
+      );
 
-      y += itemH;
+      // Fix text (one line, ellipsis)
+      doc.fillColor(C.bodyText).font('Helvetica').fontSize(9.5).text(
+        item.fix || item.message || '',
+        MARGIN + 50, y + 36,
+        { width: PAGE.W - MARGIN * 2 - 60, height: 16, ellipsis: true, lineBreak: false },
+      );
+
+      y += cardH + 8;
     }
-    y += 16;
   }
 }
 

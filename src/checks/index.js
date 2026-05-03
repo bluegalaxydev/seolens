@@ -1,5 +1,5 @@
 /**
- * Check registry — assembles all free-tier checks (~70 across 16 categories).
+ * Check registry — assembles all free-tier checks (100+ across 22 categories).
  * Pro version adds 60+ more in a separate package.
  */
 import { metaChecks } from './meta.js';
@@ -18,10 +18,17 @@ import { conversionChecks } from './conversion.js';
 import { trustChecks } from './trust.js';
 import { ecommerceChecks } from './ecommerce.js';
 import { contentQualityChecks } from './content-quality.js';
+import { performanceChecks } from './performance.js';
+import { securityChecks } from './security.js';
+import { i18nChecks } from './i18n.js';
+import { schemaDeepChecks } from './schema-deep.js';
+import { crawlabilityChecks } from './crawlability.js';
+import { pageExperienceChecks } from './page-experience.js';
 
 export const allChecks = [
   // Indexability runs first — if blocked, nothing else matters
   ...indexabilityChecks,
+  ...crawlabilityChecks,
   // Core on-page
   ...metaChecks,
   ...headingChecks,
@@ -31,19 +38,26 @@ export const allChecks = [
   ...linkChecks,
   ...accessibilityChecks,
   ...mobileChecks,
+  ...i18nChecks,
+  // Technical & performance & security
   ...technicalChecks,
-  // Marketing layer (matches premium audit reports)
+  ...performanceChecks,
+  ...securityChecks,
+  ...pageExperienceChecks,
+  // Marketing layer
   ...conversionChecks,
   ...trustChecks,
   ...ecommerceChecks,
-  // Discoverability + off-page
+  // Discoverability + structured data + off-page
   ...socialChecks,
   ...structuredDataChecks,
+  ...schemaDeepChecks,
   ...backlinkChecks,
 ];
 
 export const categories = {
   indexability: 'Indexability',
+  crawlability: 'Crawlability',
   meta: 'Meta Tags',
   headings: 'Headings',
   content: 'Content Quality',
@@ -52,12 +66,17 @@ export const categories = {
   links: 'Links',
   accessibility: 'Accessibility',
   mobile: 'Mobile',
+  i18n: 'Internationalization',
   technical: 'Technical',
+  performance: 'Performance',
+  security: 'Security Headers',
+  'page-experience': 'Page Experience',
   conversion: 'Conversion',
   trust: 'Trust & Legitimacy',
   ecommerce: 'E-commerce',
   social: 'Social',
   'structured-data': 'Structured Data',
+  'schema-deep': 'Schema (Deep)',
   backlinks: 'Backlinks & Authority',
 };
 
@@ -67,16 +86,16 @@ export const categories = {
  */
 export const marketingCategories = {
   'SEO & Discoverability': {
-    weight: 0.25,
-    sources: ['meta', 'headings', 'indexability', 'structured-data', 'links'],
+    weight: 0.20,
+    sources: ['meta', 'headings', 'indexability', 'crawlability', 'structured-data', 'schema-deep', 'links'],
   },
   'Technical & Performance': {
     weight: 0.20,
-    sources: ['technical', 'html-compliance', 'mobile'],
+    sources: ['technical', 'performance', 'html-compliance', 'mobile', 'page-experience'],
   },
   'Content & Messaging': {
     weight: 0.15,
-    sources: ['content', 'social'],
+    sources: ['content', 'social', 'i18n'],
   },
   'Conversion Optimization': {
     weight: 0.15,
@@ -84,10 +103,10 @@ export const marketingCategories = {
   },
   'Brand & Trust': {
     weight: 0.15,
-    sources: ['trust', 'accessibility'],
+    sources: ['trust', 'accessibility', 'security'],
   },
   'Off-page Authority': {
-    weight: 0.10,
+    weight: 0.15,
     sources: ['backlinks', 'images'],
   },
 };
