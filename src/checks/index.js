@@ -24,17 +24,25 @@ import { i18nChecks } from './i18n.js';
 import { schemaDeepChecks } from './schema-deep.js';
 import { crawlabilityChecks } from './crawlability.js';
 import { pageExperienceChecks } from './page-experience.js';
+import { imageOptimizationChecks } from './image-optimization.js';
+import { keywordOptimizationChecks } from './keyword-optimization.js';
+import { eeatChecks } from './eeat.js';
+import { criticalIssueChecks } from './critical-issues.js';
 
 export const allChecks = [
-  // Indexability runs first — if blocked, nothing else matters
+  // Critical issues run first — these are the dealbreakers consultants pitch on
+  ...criticalIssueChecks,
+  // Indexability
   ...indexabilityChecks,
   ...crawlabilityChecks,
   // Core on-page
   ...metaChecks,
   ...headingChecks,
   ...contentQualityChecks,
+  ...keywordOptimizationChecks,
   ...htmlComplianceChecks,
   ...imageChecks,
+  ...imageOptimizationChecks,
   ...linkChecks,
   ...accessibilityChecks,
   ...mobileChecks,
@@ -47,6 +55,7 @@ export const allChecks = [
   // Marketing layer
   ...conversionChecks,
   ...trustChecks,
+  ...eeatChecks,
   ...ecommerceChecks,
   // Discoverability + structured data + off-page
   ...socialChecks,

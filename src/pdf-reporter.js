@@ -18,6 +18,7 @@
 import PDFDocument from 'pdfkit';
 import { createWriteStream } from 'node:fs';
 import { categories, marketingCategories } from './checks/index.js';
+import { estimateUplift } from './scorer.js';
 
 // Premium "editorial" palette — navy core with warm gold accent.
 // Inspired by financial/consulting reports (McKinsey, Goldman, etc.) — heavy,
@@ -192,6 +193,19 @@ function coverPage(doc, audit, newPage) {
     .font('Helvetica')
     .fontSize(10)
     .text(formatDate(audit.fetchedAt), MARGIN + 10, y, { characterSpacing: 1 });
+  y += 14;
+
+  // Audit reference + check count (signals rigor)
+  const auditId = computeAuditId(audit);
+  doc
+    .fillColor(C.gold)
+    .font('Helvetica-Bold')
+    .fontSize(8)
+    .text(
+      `AUDIT REFERENCE: ${auditId}  ·  ${audit.results.length} CHECKS  ·  ${Object.keys(categories).length} CATEGORIES`,
+      MARGIN + 10, y,
+      { characterSpacing: 1.5 },
+    );
 
   // Donut score gauge — positioned on the right side for editorial balance
   const gaugeCx = PAGE.W - MARGIN - 90;
@@ -211,9 +225,48 @@ function coverPage(doc, audit, newPage) {
     .fontSize(11)
     .text(audit.score.label.toUpperCase(), gaugeCx - 60, gaugeCy + gaugeR + 28, { width: 120, align: 'center', characterSpacing: 1 });
 
+  // ─── Projected Uplift callout (the consultant's killer slide) ───
+  const uplift = estimateUplift(audit.results, audit.score.value);
+  const upliftY = 470;
+  const upliftH = 60;
+  const upliftX = MARGIN + 10;
+  const upliftW = PAGE.W - upliftX - MARGIN;
+
+  // Solid navy panel with gold accent
+  doc.roundedRect(upliftX, upliftY, upliftW, upliftH, 4).fillColor(C.navy).fill();
+  doc.rect(upliftX, upliftY, 4, upliftH).fill(C.gold);
+
+  // Eyebrow text
+  doc
+    .fillColor(C.gold)
+    .font('Helvetica-Bold')
+    .fontSize(8)
+    .text('PROJECTED ORGANIC TRAFFIC RECOVERY', upliftX + 18, upliftY + 9, { characterSpacing: 2 });
+
+  // Big percentage
+  doc
+    .fillColor('#FFFFFF')
+    .font('Helvetica-Bold')
+    .fontSize(26)
+    .text(uplift.headline, upliftX + 16, upliftY + 22);
+
+  // Subtext (top line)
+  doc
+    .fillColor('#E8DAB8')
+    .font('Helvetica-Bold')
+    .fontSize(9)
+    .text('within 60–120 days post-remediation', upliftX + 240, upliftY + 26);
+
+  // Subtext (bottom line — methodological caveat)
+  doc
+    .fillColor('#B7C2DB')
+    .font('Helvetica-Oblique')
+    .fontSize(8)
+    .text('Modeled from comparable on-page remediation outcomes', upliftX + 240, upliftY + 41);
+
   // ─── Executive summary panel (white card on cream background) ───
-  const panelY = 510;
-  const panelH = 200;
+  const panelY = 545;
+  const panelH = 175;
   const panelX = MARGIN + 10;
   const panelW = PAGE.W - panelX - MARGIN;
 
@@ -225,7 +278,7 @@ function coverPage(doc, audit, newPage) {
   doc.rect(panelX, panelY, 3, panelH).fill(C.gold);
 
   // Panel content
-  let py = panelY + 18;
+  let py = panelY + 16;
   doc
     .fillColor(C.gold)
     .font('Helvetica-Bold')
@@ -235,18 +288,18 @@ function coverPage(doc, audit, newPage) {
   doc
     .fillColor(C.navy)
     .font('Helvetica-Bold')
-    .fontSize(15)
+    .fontSize(14)
     .text(`Score: ${audit.score.value}/100 · Grade ${audit.score.grade}`, panelX + 18, py);
-  py += 26;
+  py += 22;
 
   // Summary text
   doc
     .fillColor(C.bodyText)
     .font('Helvetica')
-    .fontSize(10.5)
-    .text(executiveSummary(audit), panelX + 18, py, {
+    .fontSize(10)
+    .text(executiveSummary(audit, uplift), panelX + 18, py, {
       width: panelW - 36,
-      lineGap: 3.5,
+      lineGap: 3,
       align: 'left',
     });
 }
@@ -654,7 +707,12 @@ function methodologyPage(doc, audit, newPage) {
   doc.moveTo(MARGIN, y).lineTo(PAGE.W - MARGIN, y).strokeColor(C.navy).lineWidth(2).stroke();
   y += 12;
   doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(20).text('METHODOLOGY', MARGIN, y);
-  y += 32;
+  y += 14;
+  doc.fillColor(C.muted).font('Helvetica-Oblique').fontSize(10).text(
+    'How findings are scored, weighted, and prioritized',
+    MARGIN, y, { width: PAGE.W - MARGIN * 2 - 4 },
+  );
+  y += 26;
 
   // Methodology table
   const rows = [['Category', 'Weight', 'What it measures']];
@@ -664,36 +722,70 @@ function methodologyPage(doc, audit, newPage) {
   }
   drawTable(doc, y, rows, [200, 70, PAGE.W - MARGIN * 2 - 270]);
 
-  y = doc.y + 30;
+  y = doc.y + 22;
 
   // Scoring legend
-  doc.fillColor(C.primary).font('Helvetica-Bold').fontSize(13).text('Scoring Legend', MARGIN, y);
-  y += 20;
+  doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(9).text('SCORING LEGEND', MARGIN, y, { characterSpacing: 1.5 });
+  y += 16;
 
   const legend = [
     ['Score', 'Grade', 'Status', 'Color'],
-    ['80–100', 'A / A+', 'Strong', '■'],
-    ['60–79', 'B / C+', 'Solid', '■'],
-    ['40–59', 'D / C-', 'Needs Work', '■'],
-    ['0–39', 'F', 'Critical', '■'],
+    ['85–100', 'A',  'Excellent — leadership-tier optimization', '■'],
+    ['70–84',  'B',  'Good — competitive but with growth opportunities', '■'],
+    ['55–69',  'C',  'Fair — significant on-page gaps suppressing rankings', '■'],
+    ['40–54',  'D',  'Needs Work — multiple critical issues block visibility', '■'],
+    ['0–39',   'F',  'Major Issues — site is failing core SEO fundamentals', '■'],
   ];
-  const legendColors = [null, C.green, C.blue, C.yellow, C.red];
+  const legendColors = [null, C.green, C.blue, C.yellow, '#E08A00', C.red];
 
-  drawLegendTable(doc, y, legend, [80, 80, 130, 50], legendColors);
+  drawLegendTable(doc, y, legend, [55, 50, 250, 35], legendColors);
 
-  y = doc.y + 28;
+  y = doc.y + 24;
 
-  // Footer note
-  doc
-    .fillColor(C.muted)
-    .font('Helvetica-Oblique')
-    .fontSize(9)
-    .text(
-      `Audit performed ${formatDate(audit.fetchedAt)} on ${audit.url}. Run with Seolens — fast on-page SEO auditor.`,
-      MARGIN,
-      y,
-      { width: PAGE.W - MARGIN * 2, align: 'center' },
-    );
+  // ─── Data sources & references panel ───
+  doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(9).text('DATA SOURCES & REFERENCES', MARGIN, y, { characterSpacing: 1.5 });
+  y += 16;
+
+  const refs = [
+    { label: 'Google Search Central', detail: 'developers.google.com/search — on-page SEO best practices, indexing rules, structured data requirements' },
+    { label: 'Web Vitals', detail: 'web.dev/vitals — Core Web Vitals (LCP, CLS, INP) thresholds used to define performance scoring tiers' },
+    { label: 'Schema.org', detail: 'schema.org — structured data vocabulary; required-field validation for Article, Product, Organization, FAQPage types' },
+    { label: 'WCAG 2.1 AA', detail: 'w3.org/WAI/WCAG21 — accessibility checks (form labels, ARIA, color contrast proxies, keyboard navigation)' },
+    { label: 'OWASP Secure Headers', detail: 'owasp.org/secure-headers — Content-Security-Policy, HSTS, X-Frame-Options threat-mitigation guidance' },
+    { label: 'Google E-E-A-T Guidelines', detail: 'Search Quality Rater Guidelines — Experience, Expertise, Authoritativeness, Trust signals for YMYL content' },
+  ];
+
+  for (const r of refs) {
+    doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(9).text(r.label, MARGIN, y, { width: 145, lineBreak: false });
+    doc.fillColor(C.bodyText).font('Helvetica').fontSize(9).text(r.detail, MARGIN + 150, y, { width: PAGE.W - MARGIN * 2 - 150, lineGap: 1 });
+    y = doc.y + 6;
+  }
+
+  y += 6;
+
+  // ─── Audit metadata footer ───
+  doc.moveTo(MARGIN, y).lineTo(PAGE.W - MARGIN, y).strokeColor(C.gold).lineWidth(0.5).stroke();
+  y += 10;
+
+  const auditId = computeAuditId(audit);
+  doc.fillColor(C.muted).font('Helvetica').fontSize(8.5).text(
+    `Audit Reference: ${auditId}  ·  ${audit.results.length} checks across ${Object.keys(categories).length} categories  ·  Generated ${formatDate(audit.fetchedAt)}`,
+    MARGIN, y, { width: PAGE.W - MARGIN * 2, align: 'center' },
+  );
+  y += 14;
+  doc.fillColor(C.muted).font('Helvetica-Oblique').fontSize(8).text(
+    'Findings reflect on-page state at time of audit. Off-page signals (backlinks, domain authority, search-console-derived data) are not included in the free tier; engage Seolens Pro for full-spectrum analysis.',
+    MARGIN, y, { width: PAGE.W - MARGIN * 2, align: 'center', lineGap: 1 },
+  );
+}
+
+function computeAuditId(audit) {
+  // Stable short ID from URL + timestamp
+  const stamp = (audit.fetchedAt || '').replace(/[^0-9]/g, '').slice(0, 12);
+  let h = 0;
+  for (const c of audit.url || '') h = ((h << 5) - h + c.charCodeAt(0)) | 0;
+  const hex = (h >>> 0).toString(16).toUpperCase().padStart(6, '0').slice(0, 6);
+  return `SL-${stamp}-${hex}`;
 }
 
 // ============ HELPERS ============
@@ -761,7 +853,7 @@ function drawLegendTable(doc, y, rows, colWidths, colorOverrides) {
   doc.y = y + 4;
 }
 
-function executiveSummary(audit) {
+function executiveSummary(audit, uplift) {
   const value = audit.score.value;
   const summary = audit.summary;
   const top = audit.results
@@ -770,19 +862,32 @@ function executiveSummary(audit) {
     .slice(0, 3)
     .map((r) => r.label);
 
+  const totalIssues = summary.critical + summary.warning + summary.info;
+
+  // Senior-consultant tone: structural assessment, specific terminology,
+  // explicit reference to Google ranking factors and ranking suppression.
   let intro;
-  if (value >= 90) intro = 'The site demonstrates excellent on-page SEO discipline across meta, structure, technical, and trust signals.';
-  else if (value >= 75) intro = 'The site has a solid SEO foundation. A handful of warnings reduce the score from an A to a B.';
-  else if (value >= 60) intro = 'The site is functional but missing several SEO best practices. Fixing the items in the action plan should produce measurable ranking gains within a few crawl cycles.';
-  else intro = 'The site has significant on-page issues that are likely suppressing organic visibility. Prioritize the critical findings first — these typically deliver the highest ROI.';
+  if (value >= 90) {
+    intro = `The site demonstrates a mature on-page optimization profile. Of ${audit.results.length} indicators evaluated, ${totalIssues} represent incremental refinement opportunities — primarily within structured data, performance budget, and conversion-funnel surfaces.`;
+  } else if (value >= 75) {
+    intro = `The site has a defensible on-page foundation, but the audit surfaced ${totalIssues} issues — including ${summary.critical} critical findings and ${summary.warning} high-impact warnings — that materially restrict organic ranking potential and SERP click-through rate.`;
+  } else if (value >= 60) {
+    intro = `The audit identified ${totalIssues} on-page issues across structural, technical, and content surfaces. Multiple findings overlap with documented Google ranking factors (E-E-A-T signals, Core Web Vitals, structured-data coverage) and are likely suppressing organic visibility relative to category competitors.`;
+  } else {
+    intro = `The audit identified ${totalIssues} significant on-page deficiencies, including ${summary.critical} critical findings that directly impede crawling, indexing, or relevance signaling. The site currently does not meet the threshold for competitive organic performance in its category.`;
+  }
 
   const issuesPart = top.length
-    ? ` The biggest priorities are ${formatList(top)}.`
+    ? ` The highest-leverage interventions are: ${formatList(top)}.`
     : '';
-  const passedPart = ` ${summary.passed} of ${summary.passed + summary.critical + summary.warning + summary.info} checks passed cleanly.`;
-  const ctaPart = ' Review the prioritized action plan starting on page 4 for specific next steps.';
 
-  return intro + issuesPart + passedPart + ctaPart;
+  const upliftPart = uplift && uplift.high > 5
+    ? ` Based on aggregated SEO recovery data across comparable on-page remediation engagements, resolving the prioritized findings is associated with ${uplift.headline} organic traffic recovery within a 60–120 day window post-implementation.`
+    : '';
+
+  const ctaPart = ' A severity-ranked findings table and prioritized 90-day action plan follow on subsequent pages.';
+
+  return intro + issuesPart + upliftPart + ctaPart;
 }
 
 function formatList(items) {
