@@ -42,6 +42,10 @@ const pptxIndex = args.indexOf('--pptx');
 const pptxPath = pptxIndex >= 0 ? args[pptxIndex + 1] : null;
 const pdfIndex = args.indexOf('--pdf');
 const pdfPath = pdfIndex >= 0 ? args[pdfIndex + 1] : null;
+const preparedForIdx = args.indexOf('--prepared-for');
+const preparedFor = preparedForIdx >= 0 ? args[preparedForIdx + 1] : null;
+const preparedByIdx = args.indexOf('--prepared-by');
+const preparedBy = preparedByIdx >= 0 ? args[preparedByIdx + 1] : null;
 
 const fromCache = args.includes('--from-cache');
 
@@ -89,7 +93,7 @@ const fromCache = args.includes('--from-cache');
 
     if (pdfPath) {
       const abs = resolve(process.cwd(), pdfPath);
-      await renderPdf(result, abs);
+      await renderPdf(result, abs, { preparedFor, preparedBy });
       process.stderr.write(`PDF report saved to ${abs}\n`);
     }
 

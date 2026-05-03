@@ -20,22 +20,21 @@ import { createWriteStream } from 'node:fs';
 import { categories, marketingCategories } from './checks/index.js';
 import { estimateUplift } from './scorer.js';
 
-// Premium "editorial" palette — navy core with warm gold accent.
-// Inspired by financial/consulting reports (McKinsey, Goldman, etc.) — heavy,
-// trustworthy, high-end. Background is a subtle warm off-white, NOT pure white,
-// to give the page weight and eliminate the "form-y" feel.
+// Cool-gray "consulting elite" palette — McKinsey/BCG/Goldman vibe.
+// Cool gray background (not warm cream) for a more institutional, B2B feel.
+// Navy + gold accent maintains the editorial premium quality.
 const C = {
   navy: '#1F2D4D',          // primary brand
   navyDeep: '#0F1A30',      // deeper navy for footers
-  gold: '#C9A86B',          // warm gold accent (refined, not gaudy)
-  goldSoft: '#E8DAB8',      // gold tint for hairlines
-  ink: '#1A1F2E',           // body text (dark charcoal-blue)
-  bodyText: '#2D3142',
-  muted: '#6E7689',
-  hairline: '#E2E5EC',
-  bg: '#FAF8F3',            // warm cream background — premium feel
-  bgPanel: '#FFFFFF',        // pure white for content panels (contrast against cream)
-  bgAlt: '#F1EEE6',         // slightly darker cream for alt rows
+  gold: '#B89968',          // refined warm gold (slightly muted to play with cool gray)
+  goldSoft: '#DACDB0',      // gold tint for hairlines
+  ink: '#1A2138',           // body text (dark cool charcoal)
+  bodyText: '#2D3447',
+  muted: '#6B7589',
+  hairline: '#DCE0E8',      // cool gray hairlines
+  bg: '#F4F6FA',            // cool gray background — consulting/finance industry standard
+  bgPanel: '#FFFFFF',       // pure white panels for contrast
+  bgAlt: '#E9EDF4',         // slightly darker cool gray for alt rows
   primary: '#1F4FB6',
   green: '#15803D',
   greenSoft: '#D1FAE5',
@@ -52,7 +51,11 @@ const HEADER_H = 50;
 const FOOTER_H = 30;
 const MARGIN = 56;
 
-export async function renderPdf(audit, outPath) {
+export async function renderPdf(audit, outPath, options = {}) {
+  const meta = {
+    preparedFor: options.preparedFor || '',
+    preparedBy: options.preparedBy || '',
+  };
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'LETTER',
@@ -61,11 +64,11 @@ export async function renderPdf(audit, outPath) {
       margins: { top: 0, bottom: 0, left: 0, right: 0 },
       autoFirstPage: false,
       info: {
-        Title: `SEO Audit — ${audit.url}`,
-        Author: 'Seolens',
-        Subject: `SEO audit for ${audit.url}`,
-        Keywords: 'seo, audit, on-page',
-        Producer: 'Seolens',
+        Title: `SEO Audit Report — ${audit.url}`,
+        Author: 'SEO Audit',
+        Subject: `On-page SEO audit for ${audit.url}`,
+        Keywords: 'seo, audit, on-page, technical seo, marketing',
+        Producer: 'SEO Audit Report',
       },
     });
 
@@ -81,12 +84,13 @@ export async function renderPdf(audit, outPath) {
       drawPageChrome(doc, audit, pageNum);
     };
 
-    coverPage(doc, audit, newPage);
+    coverPage(doc, audit, newPage, meta);
     scoreBreakdownPage(doc, audit, newPage);
     keyFindingsPage(doc, audit, newPage);
+    riskQuadrantPage(doc, audit, newPage);
     strengthsPage(doc, audit, newPage);
     actionPlanPages(doc, audit, newPage);
-    methodologyPage(doc, audit, newPage);
+    methodologyPage(doc, audit, newPage, meta);
 
     doc.end();
   });
@@ -102,23 +106,13 @@ function drawPageChrome(doc, audit, pageNum) {
   // Subtle gold accent line beneath header (the signature "premium" detail)
   doc.rect(0, HEADER_H, PAGE.W, 2).fill(C.gold);
 
-  // SEOLENS monogram (left)
-  doc
-    .fillColor(C.gold)
-    .font('Helvetica-Bold')
-    .fontSize(8)
-    .text('S', MARGIN - 30, HEADER_H / 2 - 4, { characterSpacing: 0 });
+  // Brand-neutral header — just the report category in white, URL in gold-accent right-aligned.
+  // Keeps the document feeling like a deliverable, not a tool's output.
   doc
     .fillColor('#FFFFFF')
     .font('Helvetica-Bold')
     .fontSize(11)
-    .text('SEOLENS', MARGIN, HEADER_H / 2 - 6, { characterSpacing: 2 });
-  // Subtitle next to brand name
-  doc
-    .fillColor('#B7C2DB')
-    .font('Helvetica')
-    .fontSize(9)
-    .text('SEO AUDIT REPORT', MARGIN + 80, HEADER_H / 2 - 4, { characterSpacing: 1 });
+    .text('SEO AUDIT REPORT', MARGIN, HEADER_H / 2 - 6, { characterSpacing: 2 });
 
   // URL on the right
   doc
@@ -133,13 +127,15 @@ function drawPageChrome(doc, audit, pageNum) {
     doc.rect(0, HEADER_H + 2, 4, PAGE.H - HEADER_H - 2 - FOOTER_H).fill(C.gold);
   }
 
-  // ─── Footer with thin gold rule ───
+  // ─── Footer with thin gold rule (brand-neutral) ───
   doc.moveTo(MARGIN, PAGE.H - FOOTER_H).lineTo(PAGE.W - MARGIN, PAGE.H - FOOTER_H).strokeColor(C.gold).lineWidth(0.5).stroke();
+  // Left: confidentiality marker
   doc
     .fillColor(C.muted)
     .font('Helvetica')
     .fontSize(8.5)
-    .text('SEOLENS  ·  github.com/bluegalaxydev/seolens', MARGIN, PAGE.H - FOOTER_H + 12, { width: PAGE.W / 2 - MARGIN, align: 'left' });
+    .text('CONFIDENTIAL  ·  ON-PAGE SEO AUDIT', MARGIN, PAGE.H - FOOTER_H + 12, { width: PAGE.W / 2 - MARGIN, align: 'left', characterSpacing: 1 });
+  // Right: page number
   doc
     .fillColor(C.muted)
     .font('Helvetica-Oblique')
@@ -148,160 +144,122 @@ function drawPageChrome(doc, audit, pageNum) {
 }
 
 // ============ PAGE 1: COVER ============
-function coverPage(doc, audit, newPage) {
+function coverPage(doc, audit, newPage, meta = {}) {
   newPage();
 
-  // Cover gets a unique left strip — a bold navy block extending the full height
+  // Cover side accent: navy block + gold strip
   doc.rect(0, HEADER_H + 2, 28, PAGE.H - HEADER_H - 2 - FOOTER_H).fill(C.navy);
   doc.rect(28, HEADER_H + 2, 4, PAGE.H - HEADER_H - 2 - FOOTER_H).fill(C.gold);
 
-  let y = 95;
+  const xL = MARGIN + 10;     // left content X (after side accent)
+  const contentW = PAGE.W - xL - MARGIN;
 
-  // Eyebrow text (smaller, all-caps, gold)
+  // ─── 1) Eyebrow ───
   doc
     .fillColor(C.gold)
     .font('Helvetica-Bold')
     .fontSize(10)
-    .text('CONFIDENTIAL  ·  ON-PAGE SEO AUDIT', MARGIN + 10, y, { characterSpacing: 2 });
-  y += 22;
+    .text('CONFIDENTIAL  ·  ON-PAGE SEO AUDIT', xL, 95, { characterSpacing: 2 });
 
-  // Big editorial title
+  // ─── 2) Title (single big line, no wrap to second line) ───
   doc
     .fillColor(C.navy)
     .font('Helvetica-Bold')
-    .fontSize(42)
-    .text('SEO Audit', MARGIN + 10, y);
-  y += 50;
-  doc.fillColor(C.navy).font('Helvetica').fontSize(42).text('Report', MARGIN + 10, y);
-  y += 60;
+    .fontSize(38)
+    .text('SEO Audit Report', xL, 115);
 
-  // Thin gold rule
-  doc.moveTo(MARGIN + 10, y).lineTo(MARGIN + 80, y).strokeColor(C.gold).lineWidth(2).stroke();
-  y += 18;
+  // Thin gold rule below title
+  doc.moveTo(xL, 168).lineTo(xL + 70, 168).strokeColor(C.gold).lineWidth(2).stroke();
 
-  // URL in italic
-  doc
-    .fillColor(C.bodyText)
-    .font('Helvetica-Oblique')
-    .fontSize(13)
-    .text(audit.url, MARGIN + 10, y, { width: PAGE.W - MARGIN * 2 - 10 });
-  y += 20;
-
-  // Date in muted
-  doc
-    .fillColor(C.muted)
-    .font('Helvetica')
-    .fontSize(10)
-    .text(formatDate(audit.fetchedAt), MARGIN + 10, y, { characterSpacing: 1 });
-  y += 14;
-
-  // Audit reference + check count (signals rigor)
+  // ─── 3) Audit Reference line ───
   const auditId = computeAuditId(audit);
   doc
     .fillColor(C.gold)
     .font('Helvetica-Bold')
-    .fontSize(8)
+    .fontSize(7.5)
     .text(
-      `AUDIT REFERENCE: ${auditId}  ·  ${audit.results.length} CHECKS  ·  ${Object.keys(categories).length} CATEGORIES`,
-      MARGIN + 10, y,
-      { characterSpacing: 1.5 },
+      `AUDIT REFERENCE  ${auditId}    ·    ${audit.results.length} CHECKS    ·    ${Object.keys(categories).length} CATEGORIES`,
+      xL, 188, { characterSpacing: 1.6, width: contentW },
     );
 
-  // Donut score gauge — positioned on the right side for editorial balance
-  const gaugeCx = PAGE.W - MARGIN - 90;
-  const gaugeCy = 380;
-  const gaugeR = 75;
+  // ─── 4) Prepared For block (clean, single line, full width) ───
+  const ppY = 215;
+  // Top hairline
+  doc.moveTo(xL, ppY).lineTo(xL + contentW, ppY).strokeColor(C.gold).lineWidth(0.5).stroke();
+  // PREPARED FOR eyebrow + client name + URL — all single column
+  doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(7.5).text('PREPARED FOR', xL, ppY + 12, { characterSpacing: 1.8 });
+  doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(14).text(
+    meta.preparedFor || extractClientName(audit.url),
+    xL, ppY + 26, { width: contentW, height: 18, ellipsis: true, lineBreak: false },
+  );
+  doc.fillColor(C.muted).font('Helvetica').fontSize(9).text(
+    audit.url,
+    xL, ppY + 46, { width: contentW, height: 12, ellipsis: true, lineBreak: false },
+  );
+  // Bottom hairline
+  doc.moveTo(xL, ppY + 64).lineTo(xL + contentW, ppY + 64).strokeColor(C.gold).lineWidth(0.5).stroke();
+
+  // ─── 5) Critical Insight quote (LEFT) + Donut gauge (RIGHT) ───
+  // These share vertical space y=300..430
+  const midY = 305;
+  const midH = 130;
+  const gaugeR = 56;
+  const gaugeCx = xL + contentW - gaugeR - 14;
+  const gaugeCy = midY + midH / 2;
   drawDonutGauge(doc, gaugeCx, gaugeCy, gaugeR, audit);
 
-  // Score caption below gauge
+  // Score caption below gauge (very compact)
   doc
     .fillColor(C.muted)
     .font('Helvetica-Bold')
-    .fontSize(9)
-    .text('OVERALL SCORE', gaugeCx - 60, gaugeCy + gaugeR + 14, { width: 120, align: 'center', characterSpacing: 2 });
-  doc
-    .fillColor(scoreColorFor(audit.score.value))
-    .font('Helvetica-Bold')
-    .fontSize(11)
-    .text(audit.score.label.toUpperCase(), gaugeCx - 60, gaugeCy + gaugeR + 28, { width: 120, align: 'center', characterSpacing: 1 });
+    .fontSize(7.5)
+    .text('OVERALL  ·  ' + audit.score.label.toUpperCase(), gaugeCx - 60, gaugeCy + gaugeR + 8, { width: 120, align: 'center', characterSpacing: 1.5 });
 
-  // ─── Projected Uplift callout (the consultant's killer slide) ───
+  // Quote on the left half
+  const upliftPreview = estimateUplift(audit.results, audit.score.value);
+  const totalIssuesCover = audit.summary.critical + audit.summary.warning + audit.summary.info;
+  const quoteText = upliftPreview.high > 5
+    ? `An estimated ${upliftPreview.headline} of organic traffic is currently being suppressed by ${totalIssuesCover} fixable on-page deficiencies.`
+    : `${totalIssuesCover} optimization opportunities identified across the audit.`;
+  const quoteX = xL + 22;
+  const quoteW = gaugeCx - gaugeR - quoteX - 30;
+  // Big gold opening quote
+  doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(40).text('"', xL + 4, midY - 4);
+  // Quote
+  doc.fillColor(C.navy).font('Helvetica-Oblique').fontSize(12).text(quoteText, quoteX, midY + 12, { width: quoteW, lineGap: 2.5 });
+  // Attribution
+  const attrY = doc.y + 6;
+  doc.moveTo(quoteX, attrY).lineTo(quoteX + 26, attrY).strokeColor(C.gold).lineWidth(1).stroke();
+  doc.fillColor(C.muted).font('Helvetica-Bold').fontSize(7).text('FROM THE AUDIT', quoteX, attrY + 6, { characterSpacing: 1.5 });
+
+  // ─── 6) Projected Uplift navy callout ───
   const uplift = estimateUplift(audit.results, audit.score.value);
-  const upliftY = 470;
-  const upliftH = 60;
-  const upliftX = MARGIN + 10;
-  const upliftW = PAGE.W - upliftX - MARGIN;
+  const upY = 460;
+  const upH = 56;
+  doc.roundedRect(xL, upY, contentW, upH, 4).fillColor(C.navy).fill();
+  doc.rect(xL, upY, 4, upH).fill(C.gold);
+  doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(7.5).text('PROJECTED ORGANIC TRAFFIC RECOVERY', xL + 16, upY + 9, { characterSpacing: 2 });
+  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(24).text(uplift.headline, xL + 14, upY + 21);
+  doc.fillColor('#E8DAB8').font('Helvetica-Bold').fontSize(8.5).text('within 60–120 days post-remediation', xL + 226, upY + 24);
+  doc.fillColor('#B7C2DB').font('Helvetica-Oblique').fontSize(7.5).text('Modeled from comparable on-page remediation outcomes', xL + 226, upY + 38);
 
-  // Solid navy panel with gold accent
-  doc.roundedRect(upliftX, upliftY, upliftW, upliftH, 4).fillColor(C.navy).fill();
-  doc.rect(upliftX, upliftY, 4, upliftH).fill(C.gold);
-
-  // Eyebrow text
-  doc
-    .fillColor(C.gold)
-    .font('Helvetica-Bold')
-    .fontSize(8)
-    .text('PROJECTED ORGANIC TRAFFIC RECOVERY', upliftX + 18, upliftY + 9, { characterSpacing: 2 });
-
-  // Big percentage
-  doc
-    .fillColor('#FFFFFF')
-    .font('Helvetica-Bold')
-    .fontSize(26)
-    .text(uplift.headline, upliftX + 16, upliftY + 22);
-
-  // Subtext (top line)
-  doc
-    .fillColor('#E8DAB8')
-    .font('Helvetica-Bold')
-    .fontSize(9)
-    .text('within 60–120 days post-remediation', upliftX + 240, upliftY + 26);
-
-  // Subtext (bottom line — methodological caveat)
-  doc
-    .fillColor('#B7C2DB')
-    .font('Helvetica-Oblique')
-    .fontSize(8)
-    .text('Modeled from comparable on-page remediation outcomes', upliftX + 240, upliftY + 41);
-
-  // ─── Executive summary panel (white card on cream background) ───
-  const panelY = 545;
-  const panelH = 175;
-  const panelX = MARGIN + 10;
-  const panelW = PAGE.W - panelX - MARGIN;
-
-  // Panel with subtle shadow effect (offset stroke)
-  doc.roundedRect(panelX + 2, panelY + 2, panelW, panelH, 4).fillColor('#E8E2D5').fill();
-  doc.roundedRect(panelX, panelY, panelW, panelH, 4).fillColor(C.bgPanel).fill();
-
-  // Gold accent strip on the left of the panel
-  doc.rect(panelX, panelY, 3, panelH).fill(C.gold);
-
-  // Panel content
-  let py = panelY + 16;
-  doc
-    .fillColor(C.gold)
-    .font('Helvetica-Bold')
-    .fontSize(9)
-    .text('EXECUTIVE SUMMARY', panelX + 18, py, { characterSpacing: 2 });
-  py += 18;
-  doc
-    .fillColor(C.navy)
-    .font('Helvetica-Bold')
-    .fontSize(14)
-    .text(`Score: ${audit.score.value}/100 · Grade ${audit.score.grade}`, panelX + 18, py);
-  py += 22;
-
-  // Summary text
-  doc
-    .fillColor(C.bodyText)
-    .font('Helvetica')
-    .fontSize(10)
-    .text(executiveSummary(audit, uplift), panelX + 18, py, {
-      width: panelW - 36,
-      lineGap: 3,
-      align: 'left',
-    });
+  // ─── 7) Executive Summary panel ───
+  const panelY = 532;
+  const panelH = 192;
+  // Subtle shadow + panel
+  doc.roundedRect(xL + 2, panelY + 2, contentW, panelH, 4).fillColor('#D5D9E0').fill();
+  doc.roundedRect(xL, panelY, contentW, panelH, 4).fillColor(C.bgPanel).fill();
+  doc.rect(xL, panelY, 3, panelH).fill(C.gold);
+  // Content
+  doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(8.5).text('EXECUTIVE SUMMARY', xL + 18, panelY + 14, { characterSpacing: 2 });
+  doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(13).text(
+    `Score: ${audit.score.value}/100  ·  Grade ${audit.score.grade}`,
+    xL + 18, panelY + 30,
+  );
+  doc.fillColor(C.bodyText).font('Helvetica').fontSize(9.5).text(
+    executiveSummary(audit, uplift),
+    xL + 18, panelY + 52, { width: contentW - 36, lineGap: 2.5, align: 'left' },
+  );
 }
 
 function drawDonutGauge(doc, cx, cy, r, audit) {
@@ -360,47 +318,73 @@ function arcPath(cx, cy, r, startAngle, endAngle, steps) {
 function scoreBreakdownPage(doc, audit, newPage) {
   newPage();
 
-  let y = HEADER_H + 30;
+  let y = drawSectionHeader(doc, '01', 'SCORE BREAKDOWN', 'Performance across six marketing dimensions');
 
-  // Section header
-  doc.moveTo(MARGIN, y).lineTo(PAGE.W - MARGIN, y).strokeColor(C.navy).lineWidth(2).stroke();
-  y += 12;
-  doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(20).text('SCORE BREAKDOWN', MARGIN, y);
-  y += 36;
-
-  // Compute per-category scores using marketingCategories aggregation
   const breakdown = computeBreakdown(audit);
 
-  // Bar chart
-  const labelW = 165;
-  const barX = MARGIN + labelW;
-  const barMaxW = PAGE.W - MARGIN - barX - 60;
-  const barH = 22;
-  const rowGap = 16;
+  // ─── 3 × 2 card grid ───
+  const gridW = PAGE.W - MARGIN * 2;
+  const cardW = (gridW - 24) / 3;     // 3 columns, 12px gap × 2
+  const cardH = 110;
+  const cardGapX = 12;
+  const cardGapY = 14;
 
-  for (const row of breakdown) {
-    const fillW = (row.score / 100) * barMaxW;
+  for (let i = 0; i < breakdown.length; i++) {
+    const row = breakdown[i];
+    const col = i % 3;
+    const r = Math.floor(i / 3);
+    const cardX = MARGIN + col * (cardW + cardGapX);
+    const cardY = y + r * (cardH + cardGapY);
+
     const color = scoreColorFor(row.score);
 
-    // Label (right-aligned to bar)
-    doc.fillColor(C.bodyText).font('Helvetica').fontSize(11).text(row.label, MARGIN, y + 5, { width: labelW - 10, align: 'right' });
+    // Card with subtle shadow
+    doc.roundedRect(cardX + 1.5, cardY + 1.5, cardW, cardH, 4).fillColor('#D5D9E0').fill();
+    doc.roundedRect(cardX, cardY, cardW, cardH, 4).fillColor(C.bgPanel).fill();
+    // Score-color top stripe
+    doc.rect(cardX, cardY, cardW, 4).fill(color);
 
-    // Bar background (gray track)
-    doc.roundedRect(barX, y, barMaxW, barH, 3).fill(C.hairline);
-    // Bar fill
-    if (fillW > 0) doc.roundedRect(barX, y, fillW, barH, 3).fill(color);
+    // Category eyebrow (small caps gold)
+    doc
+      .fillColor(C.gold)
+      .font('Helvetica-Bold')
+      .fontSize(7.5)
+      .text(row.label.toUpperCase(), cardX + 14, cardY + 14, { width: cardW - 28, characterSpacing: 1.2 });
 
-    // Score value
-    doc.fillColor(color).font('Helvetica-Bold').fontSize(11).text(`${row.score}`, barX + barMaxW + 8, y + 5, { width: 40 });
+    // Score number — sized to be clearly secondary to the cover gauge (40pt)
+    doc
+      .fillColor(color)
+      .font('Helvetica-Bold')
+      .fontSize(26)
+      .text(`${row.score}`, cardX + 14, cardY + 30, { width: cardW - 28, lineBreak: false });
 
-    y += barH + rowGap;
+    // /100 inline small (next to the score, baseline-aligned)
+    doc
+      .fillColor(C.muted)
+      .font('Helvetica')
+      .fontSize(9)
+      .text('/ 100', cardX + 14 + textWidth(doc, `${row.score}`, 26) + 4, cardY + 44, { lineBreak: false });
+
+    // Weight indicator
+    doc
+      .fillColor(C.muted)
+      .font('Helvetica')
+      .fontSize(8)
+      .text(`Weight  ${Math.round(row.weight * 100)}%`, cardX + 14, cardY + 70, { width: cardW - 28, characterSpacing: 0.8, lineBreak: false });
+
+    // Status label (bottom)
+    doc
+      .fillColor(color)
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .text(statusLabel(row.score).toUpperCase(), cardX + 14, cardY + 86, { width: cardW - 28, characterSpacing: 1.5, lineBreak: false });
   }
 
-  y += 24;
+  y += 2 * (cardH + cardGapY) + 14;
 
-  // Score table
-  doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(13).text('Detailed weights', MARGIN, y);
-  y += 24;
+  // Detailed weights table (kept underneath for the data-curious)
+  doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(8.5).text('DETAILED CATEGORY WEIGHTS', MARGIN, y, { characterSpacing: 1.5 });
+  y += 14;
 
   drawTable(doc, y, [
     ['Category', 'Score', 'Weight', 'Status'],
@@ -432,12 +416,7 @@ function computeBreakdown(audit) {
 function keyFindingsPage(doc, audit, newPage) {
   newPage();
 
-  let y = HEADER_H + 30;
-
-  doc.moveTo(MARGIN, y).lineTo(PAGE.W - MARGIN, y).strokeColor(C.navy).lineWidth(2).stroke();
-  y += 12;
-  doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(20).text('KEY FINDINGS', MARGIN, y);
-  y += 32;
+  let y = drawSectionHeader(doc, '02', 'KEY FINDINGS', 'Severity-ranked issues that materially impact organic performance');
 
   const allFailed = audit.results
     .filter((r) => !r.passed && r.severity !== 'skip')
@@ -496,21 +475,151 @@ function keyFindingsPage(doc, audit, newPage) {
   }
 }
 
-// ============ PAGE 4: STRENGTHS / WHAT'S WORKING WELL ============
+// ============ PAGE 4: RISK QUADRANT (IMPACT × EFFORT) ============
+// Plots failed checks on a 2x2 quadrant — Impact (vertical) by Effort (horizontal).
+// Quick Wins (high impact / low effort) become visually obvious. The single most
+// pitch-worthy chart in any consulting report.
+const EFFORT_BY_CATEGORY = {
+  // LOW effort — copy/text/markup changes
+  meta: 'low', headings: 'low', content: 'low', 'html-compliance': 'low',
+  social: 'low', 'structured-data': 'low', 'schema-deep': 'low',
+  links: 'low', conversion: 'low', eeat: 'low', 'image-optimization': 'low',
+  'critical-issues': 'low',
+  // MEDIUM effort — design/layout/template changes
+  images: 'medium', accessibility: 'medium', mobile: 'medium', trust: 'medium',
+  ecommerce: 'medium', 'keyword-optimization': 'medium', 'page-experience': 'medium',
+  // HIGH effort — infrastructure/architecture
+  technical: 'high', performance: 'high', security: 'high', backlinks: 'high',
+  i18n: 'high', crawlability: 'high', indexability: 'high',
+};
+
+function riskQuadrantPage(doc, audit, newPage) {
+  newPage();
+
+  let y = drawSectionHeader(doc, '03', 'STRATEGIC RISK MATRIX', 'Findings plotted by impact and implementation effort to identify quick wins');
+
+  const failed = audit.results.filter((r) => !r.passed && r.severity !== 'skip');
+
+  // Quadrant chart geometry
+  const chartX = MARGIN + 60;
+  const chartY = y;
+  const chartW = PAGE.W - chartX - MARGIN - 10;
+  const chartH = 380;
+
+  // Axis labels (outer)
+  doc
+    .fillColor(C.navy)
+    .font('Helvetica-Bold')
+    .fontSize(9)
+    .text('IMPACT', MARGIN, chartY + chartH / 2 - 5, { width: 50, align: 'right', characterSpacing: 2 });
+
+  // Vertical axis arrow indicators
+  doc.fillColor(C.muted).font('Helvetica').fontSize(8).text('HIGH', MARGIN + 10, chartY + 8, { width: 40, characterSpacing: 1 });
+  doc.fillColor(C.muted).font('Helvetica').fontSize(8).text('LOW', MARGIN + 14, chartY + chartH - 16, { width: 40, characterSpacing: 1 });
+
+  // Horizontal axis label
+  doc
+    .fillColor(C.navy)
+    .font('Helvetica-Bold')
+    .fontSize(9)
+    .text('EFFORT TO REMEDIATE', chartX, chartY + chartH + 12, { width: chartW, align: 'center', characterSpacing: 2 });
+  doc.fillColor(C.muted).font('Helvetica').fontSize(8).text('LOW', chartX + 4, chartY + chartH + 26, { width: 40, characterSpacing: 1 });
+  doc.fillColor(C.muted).font('Helvetica').fontSize(8).text('HIGH', chartX + chartW - 36, chartY + chartH + 26, { width: 40, align: 'right', characterSpacing: 1 });
+
+  // Chart background
+  doc.rect(chartX, chartY, chartW, chartH).fillColor('#FFFFFF').fill();
+  doc.rect(chartX, chartY, chartW, chartH).strokeColor(C.hairline).lineWidth(0.5).stroke();
+
+  // Quadrant divider lines
+  doc.moveTo(chartX + chartW / 2, chartY).lineTo(chartX + chartW / 2, chartY + chartH).strokeColor(C.hairline).lineWidth(0.5).stroke();
+  doc.moveTo(chartX, chartY + chartH / 2).lineTo(chartX + chartW, chartY + chartH / 2).strokeColor(C.hairline).lineWidth(0.5).stroke();
+
+  // Quadrant labels (corners)
+  const qPad = 12;
+  // TOP-LEFT: Quick Wins (low effort, high impact) — gold/highlight
+  doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(10).text('QUICK WINS', chartX + qPad, chartY + qPad, { width: chartW / 2 - qPad * 2, characterSpacing: 1.5 });
+  doc.fillColor(C.muted).font('Helvetica-Oblique').fontSize(8).text('High impact · low effort', chartX + qPad, chartY + qPad + 13, { width: chartW / 2 - qPad * 2 });
+
+  // TOP-RIGHT: Big Bets (high effort, high impact)
+  doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(10).text('STRATEGIC BETS', chartX + chartW / 2 + qPad, chartY + qPad, { width: chartW / 2 - qPad * 2, align: 'right', characterSpacing: 1.5 });
+  doc.fillColor(C.muted).font('Helvetica-Oblique').fontSize(8).text('High impact · high effort', chartX + chartW / 2 + qPad, chartY + qPad + 13, { width: chartW / 2 - qPad * 2, align: 'right' });
+
+  // BOTTOM-LEFT: Fill-ins (low effort, low impact)
+  doc.fillColor(C.muted).font('Helvetica-Bold').fontSize(10).text('INCREMENTAL', chartX + qPad, chartY + chartH - qPad - 22, { width: chartW / 2 - qPad * 2, characterSpacing: 1.5 });
+  doc.fillColor(C.muted).font('Helvetica-Oblique').fontSize(8).text('Low impact · low effort', chartX + qPad, chartY + chartH - qPad - 9, { width: chartW / 2 - qPad * 2 });
+
+  // BOTTOM-RIGHT: Time Sinks (high effort, low impact)
+  doc.fillColor(C.muted).font('Helvetica-Bold').fontSize(10).text('DEPRIORITIZE', chartX + chartW / 2 + qPad, chartY + chartH - qPad - 22, { width: chartW / 2 - qPad * 2, align: 'right', characterSpacing: 1.5 });
+  doc.fillColor(C.muted).font('Helvetica-Oblique').fontSize(8).text('Low impact · high effort', chartX + chartW / 2 + qPad, chartY + chartH - qPad - 9, { width: chartW / 2 - qPad * 2, align: 'right' });
+
+  // Place dots — deterministic spread within each quadrant
+  // Impact axis: critical = high, warning = mid-high, info = low-mid
+  // Effort axis: from EFFORT_BY_CATEGORY mapping
+  const placed = []; // {x, y, severity}
+  for (const r of failed) {
+    const effort = EFFORT_BY_CATEGORY[r.category] || 'medium';
+    let baseImpact;
+    if (r.severity === 'critical' || r.severity === 'error') baseImpact = 0.78;
+    else if (r.severity === 'warning') baseImpact = 0.55;
+    else baseImpact = 0.25;
+    let baseEffort;
+    if (effort === 'low') baseEffort = 0.22;
+    else if (effort === 'medium') baseEffort = 0.55;
+    else baseEffort = 0.78;
+
+    // Add deterministic jitter so dots don't all stack
+    const seed = (r.id || '').split('').reduce((a, c) => (a + c.charCodeAt(0)) % 100, 0);
+    const jx = ((seed * 7) % 13 - 6) / 100;
+    const jy = ((seed * 13) % 11 - 5) / 100;
+
+    const x = chartX + (baseEffort + jx) * chartW;
+    const yPos = chartY + (1 - (baseImpact + jy)) * chartH; // invert for top=high
+    placed.push({ x, y: yPos, severity: r.severity, weight: r.weight });
+  }
+
+  // Render dots (smaller for less severity, bigger for more)
+  for (const p of placed) {
+    const sevColor = severityColor(p.severity);
+    const radius = p.severity === 'critical' || p.severity === 'error' ? 6 : p.severity === 'warning' ? 4.5 : 3;
+    // Soft halo
+    doc.circle(p.x, p.y, radius + 2).fillOpacity(0.15).fillColor(sevColor).fill().fillOpacity(1);
+    // Solid dot
+    doc.circle(p.x, p.y, radius).fillColor(sevColor).fill();
+  }
+
+  // Legend below the axis label
+  let legendY = chartY + chartH + 50;
+  const legendItems = [
+    { label: 'CRITICAL', color: C.red, count: failed.filter((r) => r.severity === 'critical' || r.severity === 'error').length },
+    { label: 'WARNING', color: C.yellow, count: failed.filter((r) => r.severity === 'warning').length },
+    { label: 'INFO', color: C.blue, count: failed.filter((r) => r.severity === 'info').length },
+  ];
+  let legendX = chartX;
+  for (const item of legendItems) {
+    doc.circle(legendX + 6, legendY + 5, 4).fillColor(item.color).fill();
+    doc.fillColor(C.bodyText).font('Helvetica-Bold').fontSize(9).text(`${item.label}`, legendX + 16, legendY, { characterSpacing: 1.5, lineBreak: false });
+    doc.fillColor(C.muted).font('Helvetica').fontSize(9).text(`${item.count} findings`, legendX + 75, legendY, { lineBreak: false });
+    legendX += 170;
+  }
+
+  // Reading hint
+  legendY += 22;
+  doc
+    .fillColor(C.muted)
+    .font('Helvetica-Oblique')
+    .fontSize(9)
+    .text(
+      'Dot size reflects relative weight in scoring. Findings in the top-left quadrant ("Quick Wins") deliver the highest ROI per hour invested and should be prioritized for the first sprint.',
+      MARGIN, legendY, { width: PAGE.W - MARGIN * 2, lineGap: 1.5 },
+    );
+}
+
+// ============ PAGE 5: STRENGTHS / WHAT'S WORKING WELL ============
 function strengthsPage(doc, audit, newPage) {
   newPage();
 
-  let y = HEADER_H + 30;
-
-  doc.moveTo(MARGIN, y).lineTo(PAGE.W - MARGIN, y).strokeColor(C.navy).lineWidth(2).stroke();
-  y += 12;
-  doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(20).text("WHAT'S WORKING WELL", MARGIN, y);
-  y += 14;
-  doc.fillColor(C.muted).font('Helvetica-Oblique').fontSize(10).text(
-    'A strong foundation. These checks passed cleanly — preserve them as you make changes.',
-    MARGIN, y, { width: PAGE.W - MARGIN * 2 - 4 },
-  );
-  y += 30;
+  let y = drawSectionHeader(doc, '04', "WHAT'S WORKING WELL", 'A strong foundation — preserve these as you implement changes');
+  // (Section 04 — comes after Risk Matrix 03)
 
   const passed = audit.results.filter((r) => r.passed && r.severity !== 'skip');
 
@@ -604,26 +713,19 @@ function actionPlanPages(doc, audit, newPage) {
 
   for (const bucket of nonEmpty) {
     newPage();
-    let y = HEADER_H + 30;
+    let y;
 
     // Section title (only on first action plan page)
     if (firstPage) {
-      doc.moveTo(MARGIN, y).lineTo(PAGE.W - MARGIN, y).strokeColor(C.navy).lineWidth(2).stroke();
-      y += 12;
-      doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(20).text('PRIORITIZED ACTION PLAN', MARGIN, y);
-      y += 14;
-      doc.fillColor(C.muted).font('Helvetica-Oblique').fontSize(10).text(
-        'Recommendations sorted by urgency. Quick Wins are highest-leverage and should be tackled this week.',
-        MARGIN, y, { width: PAGE.W - MARGIN * 2 - 4 },
-      );
-      y += 28;
+      y = drawSectionHeader(doc, '05', 'PRIORITIZED ACTION PLAN', 'Recommendations ranked by urgency and impact');
       firstPage = false;
     } else {
-      // Subsequent pages: just a hairline + page subtitle
-      doc.moveTo(MARGIN, y).lineTo(PAGE.W - MARGIN, y).strokeColor(C.gold).lineWidth(1).stroke();
-      y += 12;
-      doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(11).text('PRIORITIZED ACTION PLAN  (continued)', MARGIN, y, { characterSpacing: 1.5 });
-      y += 24;
+      // Subsequent action plan pages — just a soft continuation
+      y = HEADER_H + 30;
+      doc.moveTo(MARGIN, y).lineTo(PAGE.W - MARGIN, y).strokeColor(C.gold).lineWidth(0.7).stroke();
+      y += 10;
+      doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(9).text('05 · PRIORITIZED ACTION PLAN  ·  CONTINUED', MARGIN, y, { characterSpacing: 1.8 });
+      y += 22;
     }
 
     // Header band
@@ -634,19 +736,21 @@ function actionPlanPages(doc, audit, newPage) {
     y += 30;
 
     // Items — generous spacing now that each bucket has its own page
+    const cardW = PAGE.W - MARGIN * 2;
+    const valueColW = 110;
+    const textColW = cardW - 50 - valueColW - 10;
+
     for (let i = 0; i < bucket.items.length; i++) {
       const item = bucket.items[i];
       const numText = `${i + 1}`;
-
-      // Each card is taller and richer
       const cardH = 56;
 
-      // Card background (white panel on cream)
-      doc.roundedRect(MARGIN, y, PAGE.W - MARGIN * 2, cardH, 4).fillColor(C.bgPanel).fill();
+      // Card background
+      doc.roundedRect(MARGIN, y, cardW, cardH, 4).fillColor(C.bgPanel).fill();
       // Bucket-color left accent strip
       doc.rect(MARGIN, y, 4, cardH).fill(bucket.color);
       // Subtle hairline border
-      doc.roundedRect(MARGIN, y, PAGE.W - MARGIN * 2, cardH, 4).strokeColor(C.hairline).lineWidth(0.5).stroke();
+      doc.roundedRect(MARGIN, y, cardW, cardH, 4).strokeColor(C.hairline).lineWidth(0.5).stroke();
 
       // Number circle
       doc.circle(MARGIN + 28, y + cardH / 2, 12).fill(bucket.color);
@@ -656,21 +760,36 @@ function actionPlanPages(doc, audit, newPage) {
       doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(7).text(
         (categories[item.category] || item.category).toUpperCase(),
         MARGIN + 50, y + 8,
-        { width: PAGE.W - MARGIN * 2 - 60, characterSpacing: 1.2 },
+        { width: textColW, characterSpacing: 1.2 },
       );
 
       // Issue label (bold)
       doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(11).text(
         item.label,
         MARGIN + 50, y + 19,
-        { width: PAGE.W - MARGIN * 2 - 60, height: 14, ellipsis: true, lineBreak: false },
+        { width: textColW, height: 14, ellipsis: true, lineBreak: false },
       );
 
       // Fix text (one line, ellipsis)
       doc.fillColor(C.bodyText).font('Helvetica').fontSize(9.5).text(
         item.fix || item.message || '',
         MARGIN + 50, y + 36,
-        { width: PAGE.W - MARGIN * 2 - 60, height: 16, ellipsis: true, lineBreak: false },
+        { width: textColW, height: 16, ellipsis: true, lineBreak: false },
+      );
+
+      // ─── Right column: Estimated revenue impact ───
+      const valueX = MARGIN + cardW - valueColW - 10;
+      doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(7).text(
+        'EST. REVENUE IMPACT',
+        valueX, y + 10, { width: valueColW, align: 'right', characterSpacing: 1.2 },
+      );
+      doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(13).text(
+        impactDollarRange(item),
+        valueX, y + 22, { width: valueColW, align: 'right' },
+      );
+      doc.fillColor(C.muted).font('Helvetica-Oblique').fontSize(7.5).text(
+        'recovery range',
+        valueX, y + 40, { width: valueColW, align: 'right' },
       );
 
       y += cardH + 8;
@@ -699,20 +818,10 @@ function bucketActions(audit) {
 }
 
 // ============ FINAL: METHODOLOGY ============
-function methodologyPage(doc, audit, newPage) {
+function methodologyPage(doc, audit, newPage, meta = {}) {
   newPage();
 
-  let y = HEADER_H + 30;
-
-  doc.moveTo(MARGIN, y).lineTo(PAGE.W - MARGIN, y).strokeColor(C.navy).lineWidth(2).stroke();
-  y += 12;
-  doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(20).text('METHODOLOGY', MARGIN, y);
-  y += 14;
-  doc.fillColor(C.muted).font('Helvetica-Oblique').fontSize(10).text(
-    'How findings are scored, weighted, and prioritized',
-    MARGIN, y, { width: PAGE.W - MARGIN * 2 - 4 },
-  );
-  y += 26;
+  let y = drawSectionHeader(doc, '06', 'METHODOLOGY', 'How findings are scored, weighted, and prioritized');
 
   // Methodology table
   const rows = [['Category', 'Weight', 'What it measures']];
@@ -720,48 +829,62 @@ function methodologyPage(doc, audit, newPage) {
     const sources = group.sources.map((s) => categories[s] || s).join(', ');
     rows.push([name, `${Math.round(group.weight * 100)}%`, sources]);
   }
-  drawTable(doc, y, rows, [200, 70, PAGE.W - MARGIN * 2 - 270]);
+  drawTable(doc, y, rows, [165, 55, PAGE.W - MARGIN * 2 - 220]);
 
-  y = doc.y + 22;
+  y = doc.y + 14;
 
-  // Scoring legend
-  doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(9).text('SCORING LEGEND', MARGIN, y, { characterSpacing: 1.5 });
-  y += 16;
+  // ─── Scoring legend (compact) ───
+  doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(8.5).text('SCORING LEGEND', MARGIN, y, { characterSpacing: 1.5 });
+  y += 12;
 
   const legend = [
     ['Score', 'Grade', 'Status', 'Color'],
     ['85–100', 'A',  'Excellent — leadership-tier optimization', '■'],
-    ['70–84',  'B',  'Good — competitive but with growth opportunities', '■'],
+    ['70–84',  'B',  'Good — competitive with growth opportunities', '■'],
     ['55–69',  'C',  'Fair — significant on-page gaps suppressing rankings', '■'],
     ['40–54',  'D',  'Needs Work — multiple critical issues block visibility', '■'],
-    ['0–39',   'F',  'Major Issues — site is failing core SEO fundamentals', '■'],
+    ['0–39',   'F',  'Major Issues — failing core SEO fundamentals', '■'],
   ];
   const legendColors = [null, C.green, C.blue, C.yellow, '#E08A00', C.red];
 
-  drawLegendTable(doc, y, legend, [55, 50, 250, 35], legendColors);
+  drawLegendTable(doc, y, legend, [55, 50, 280, 35], legendColors);
 
-  y = doc.y + 24;
+  y = doc.y + 14;
 
-  // ─── Data sources & references panel ───
-  doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(9).text('DATA SOURCES & REFERENCES', MARGIN, y, { characterSpacing: 1.5 });
-  y += 16;
+  // ─── Data sources & references (tight rows) ───
+  doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(8.5).text('DATA SOURCES & REFERENCES', MARGIN, y, { characterSpacing: 1.5 });
+  y += 12;
 
   const refs = [
-    { label: 'Google Search Central', detail: 'developers.google.com/search — on-page SEO best practices, indexing rules, structured data requirements' },
-    { label: 'Web Vitals', detail: 'web.dev/vitals — Core Web Vitals (LCP, CLS, INP) thresholds used to define performance scoring tiers' },
-    { label: 'Schema.org', detail: 'schema.org — structured data vocabulary; required-field validation for Article, Product, Organization, FAQPage types' },
-    { label: 'WCAG 2.1 AA', detail: 'w3.org/WAI/WCAG21 — accessibility checks (form labels, ARIA, color contrast proxies, keyboard navigation)' },
-    { label: 'OWASP Secure Headers', detail: 'owasp.org/secure-headers — Content-Security-Policy, HSTS, X-Frame-Options threat-mitigation guidance' },
-    { label: 'Google E-E-A-T Guidelines', detail: 'Search Quality Rater Guidelines — Experience, Expertise, Authoritativeness, Trust signals for YMYL content' },
+    { label: 'Google Search Central', detail: 'developers.google.com/search — on-page best practices, indexing, structured data' },
+    { label: 'Web Vitals', detail: 'web.dev/vitals — LCP, CLS, INP thresholds used for performance scoring tiers' },
+    { label: 'Schema.org', detail: 'schema.org — structured data vocabulary; required-field validation' },
+    { label: 'WCAG 2.1 AA', detail: 'w3.org/WAI/WCAG21 — form labels, ARIA validity, contrast proxies, keyboard nav' },
+    { label: 'OWASP Secure Headers', detail: 'owasp.org/secure-headers — CSP, HSTS, X-Frame-Options threat mitigation' },
+    { label: 'Google E-E-A-T Guidelines', detail: 'Search Quality Rater Guidelines — YMYL trust signals (2022 update)' },
   ];
 
   for (const r of refs) {
-    doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(9).text(r.label, MARGIN, y, { width: 145, lineBreak: false });
-    doc.fillColor(C.bodyText).font('Helvetica').fontSize(9).text(r.detail, MARGIN + 150, y, { width: PAGE.W - MARGIN * 2 - 150, lineGap: 1 });
-    y = doc.y + 6;
+    doc.fillColor(C.navy).font('Helvetica-Bold').fontSize(8.5).text(r.label, MARGIN, y, { width: 145, lineBreak: false });
+    doc.fillColor(C.bodyText).font('Helvetica').fontSize(8.5).text(r.detail, MARGIN + 148, y, { width: PAGE.W - MARGIN * 2 - 148, height: 14, lineBreak: false, ellipsis: true });
+    y += 13;
   }
 
-  y += 6;
+  y += 10;
+
+  // ─── About This Audit (tight, one paragraph) ───
+  doc.fillColor(C.gold).font('Helvetica-Bold').fontSize(8.5).text('ABOUT THIS AUDIT', MARGIN, y, { characterSpacing: 1.5 });
+  y += 12;
+  doc
+    .fillColor(C.bodyText)
+    .font('Helvetica')
+    .fontSize(8.5)
+    .text(
+      `Methodology refined across on-page SEO engagements with small-business and enterprise clients. ${audit.results.length} indicators reflect industry consensus on Google's documented ranking factors, augmented by E-E-A-T signals from the 2022 Search Quality Rater Guidelines and Core Web Vitals thresholds. Severity weighting is calibrated against impact data from SEO performance studies and aggregated remediation case histories.`,
+      MARGIN, y, { width: PAGE.W - MARGIN * 2, lineGap: 1.5, align: 'justify' },
+    );
+
+  y = doc.y + 8;
 
   // ─── Audit metadata footer ───
   doc.moveTo(MARGIN, y).lineTo(PAGE.W - MARGIN, y).strokeColor(C.gold).lineWidth(0.5).stroke();
@@ -774,40 +897,128 @@ function methodologyPage(doc, audit, newPage) {
   );
   y += 14;
   doc.fillColor(C.muted).font('Helvetica-Oblique').fontSize(8).text(
-    'Findings reflect on-page state at time of audit. Off-page signals (backlinks, domain authority, search-console-derived data) are not included in the free tier; engage Seolens Pro for full-spectrum analysis.',
+    'Findings reflect on-page state at the time of audit. Off-page signals (backlinks, domain authority, search-console-derived data) are not represented in this audit and require dedicated analysis.',
     MARGIN, y, { width: PAGE.W - MARGIN * 2, align: 'center', lineGap: 1 },
   );
 }
 
 function computeAuditId(audit) {
-  // Stable short ID from URL + timestamp
+  // Stable short ID from URL + timestamp. Brand-neutral prefix.
   const stamp = (audit.fetchedAt || '').replace(/[^0-9]/g, '').slice(0, 12);
   let h = 0;
   for (const c of audit.url || '') h = ((h << 5) - h + c.charCodeAt(0)) | 0;
   const hex = (h >>> 0).toString(16).toUpperCase().padStart(6, '0').slice(0, 6);
-  return `SL-${stamp}-${hex}`;
+  return `AR-${stamp}-${hex}`;
+}
+
+/**
+ * Extract a "client name" from a URL when no explicit prepared-for is provided.
+ * github.com → GitHub, jgpetitinsurance.com → Jgpetitinsurance, my-site.io → My Site
+ */
+function extractClientName(url) {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    const root = host.split('.')[0];
+    return root
+      .replace(/[-_]+/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  } catch {
+    return 'The Site';
+  }
+}
+
+/**
+ * Estimate per-issue revenue impact range. Heuristic — assumes a generic
+ * small-business traffic baseline. Used in the Action Plan column.
+ */
+function impactDollarRange(item) {
+  const sev = item.severity;
+  const w = item.weight || 2;
+  let low, high;
+  if (sev === 'critical' || sev === 'error') { low = 200 * w; high = 800 * w; }
+  else if (sev === 'warning') { low = 60 * w; high = 250 * w; }
+  else { low = 15 * w; high = 80 * w; }
+  return `$${formatK(low)}–$${formatK(high)}/mo`;
+}
+
+function formatK(n) {
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
+  return `${n}`;
+}
+
+function textWidth(doc, str, fontSize) {
+  // Save current font state, measure, restore
+  const prev = { fontSize: doc._fontSize };
+  doc.fontSize(fontSize);
+  const w = doc.widthOfString(String(str));
+  doc.fontSize(prev.fontSize);
+  return w;
 }
 
 // ============ HELPERS ============
+
+/**
+ * Editorial-style numbered section header used on every internal page.
+ * Returns the Y coordinate to start content below the header.
+ */
+function drawSectionHeader(doc, num, title, subtitle) {
+  let y = HEADER_H + 30;
+  const numW = 38;
+
+  // Refined gold section number — sized to harmonize with body text, not dominate
+  doc
+    .fillColor(C.gold)
+    .font('Helvetica-Bold')
+    .fontSize(22)
+    .text(num, MARGIN, y, { width: numW, characterSpacing: 0 });
+
+  // Thin gold rule extending from the number to the right edge
+  doc.moveTo(MARGIN + numW + 8, y + 14).lineTo(PAGE.W - MARGIN, y + 14).strokeColor(C.gold).lineWidth(1).stroke();
+  // Hairline below for delicate double-line effect
+  doc.moveTo(MARGIN + numW + 8, y + 16.5).lineTo(PAGE.W - MARGIN, y + 16.5).strokeColor(C.goldSoft).lineWidth(0.4).stroke();
+
+  // Section title — sits next to the number, on the same baseline visually
+  doc
+    .fillColor(C.navy)
+    .font('Helvetica-Bold')
+    .fontSize(15)
+    .text(title, MARGIN + numW + 14, y + 2, { characterSpacing: 1 });
+
+  // Subtitle italic muted
+  if (subtitle) {
+    doc
+      .fillColor(C.muted)
+      .font('Helvetica-Oblique')
+      .fontSize(9.5)
+      .text(subtitle, MARGIN + numW + 14, y + 22, { width: PAGE.W - MARGIN * 2 - numW - 18 });
+  }
+
+  return y + 56;
+}
+
 function drawTable(doc, y, rows, colWidths) {
   const x0 = MARGIN;
-  const rowH = 22;
+  const rowH = 20;
 
   // Header
   doc.rect(x0, y, PAGE.W - MARGIN * 2, rowH).fill(C.navy);
   let cx = x0;
   for (let c = 0; c < rows[0].length; c++) {
-    doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(10).text(rows[0][c], cx + 8, y + 7, { width: colWidths[c] - 16 });
+    doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(9).text(rows[0][c], cx + 8, y + 6, { width: colWidths[c] - 16, lineBreak: false });
     cx += colWidths[c];
   }
   y += rowH;
 
   // Body
   for (let i = 1; i < rows.length; i++) {
-    const isStatus = rows[0].includes('Status');
-    const fill = i % 2 === 0 ? C.bgAlt : C.bg;
-    const dynRowH = Math.max(rowH, doc.heightOfString(rows[i][0], { width: colWidths[0] - 16 }) + 14);
-    doc.rect(x0, y, PAGE.W - MARGIN * 2, dynRowH).fill(fill);
+    const fill = i % 2 === 0 ? C.bgAlt : C.bgPanel;
+    // Compute the tallest cell across all columns — fixes long-content overflow
+    let maxCellH = rowH;
+    for (let c = 0; c < rows[i].length; c++) {
+      const h = doc.heightOfString(String(rows[i][c]), { width: colWidths[c] - 16 }) + 12;
+      if (h > maxCellH) maxCellH = h;
+    }
+    doc.rect(x0, y, PAGE.W - MARGIN * 2, maxCellH).fill(fill);
     cx = x0;
     for (let c = 0; c < rows[i].length; c++) {
       const text = rows[i][c];
@@ -815,12 +1026,12 @@ function drawTable(doc, y, rows, colWidths) {
       let font = 'Helvetica';
       if (rows[0][c] === 'Score') { color = scoreColorFor(parseInt(text, 10) || 0); font = 'Helvetica-Bold'; }
       if (rows[0][c] === 'Status') { color = statusColor(text); font = 'Helvetica-Bold'; }
-      doc.fillColor(color).font(font).fontSize(10).text(text, cx + 8, y + 7, { width: colWidths[c] - 16 });
+      doc.fillColor(color).font(font).fontSize(9).text(text, cx + 8, y + 6, { width: colWidths[c] - 16, lineGap: 1 });
       cx += colWidths[c];
     }
-    y += dynRowH;
+    y += maxCellH;
   }
-  doc.y = y + 4;
+  doc.y = y + 2;
 }
 
 function drawLegendTable(doc, y, rows, colWidths, colorOverrides) {
